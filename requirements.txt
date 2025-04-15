@@ -1,0 +1,6 @@
+Flask
+twilio
+googlemaps
+geopy
+gspread
+oauth2client
