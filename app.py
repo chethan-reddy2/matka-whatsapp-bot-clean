@@ -59,7 +59,7 @@ def whatsapp():
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=from_number,
-                content_sid="HXb044cc05b74e2472d4c5838d94c8c6c4"  # fruitcustard_greeting
+                content_sid="HXb044cc05b74e2472d4c5838d94c8c6c4"  # greeting template
             )
         except Exception as e:
             print("Template send error:", e)
@@ -67,7 +67,6 @@ def whatsapp():
         user_states[from_number] = {"step": "awaiting_post_greeting"}
         return str(resp)
 
-    # After greeting: decide based on button pressed
     elif state["step"] == "awaiting_post_greeting":
         if "order food" in incoming_msg:
             msg.body("📍 Please share your live location or type your area name.")
@@ -96,19 +95,19 @@ def whatsapp():
                 distance = geodesic(user_coords, branch_coords).km
                 if distance <= 2:
                     user_states[from_number] = {
-                        "step": "awaiting_order_selection",
+                        "step": "awaiting_menu_selection",
                         "branch": branch_name,
                         "location": user_coords
                     }
-                    msg.body(f"✅ You're within delivery range of our *{branch_name}* branch!\n🍴 Tap below to view our bestsellers and place your order.")
+                    msg.body(f"✅ You're within delivery range of our *{branch_name}* branch!\n🍴 Tap below to choose how you'd like to proceed.")
                     try:
                         twilio_client.messages.create(
                             from_=WHATSAPP_FROM,
                             to=from_number,
-                            content_sid="HX3350e7c4b8fdd9cce155b0c614fe6b7e"  # fruitcustard_bestsellers
+                            content_sid="HXe5ce9a647ed912eb5c398e2ccd15fac3"  # 3-button menu template
                         )
                     except Exception as e:
-                        print("Catalog template error:", e)
+                        print("Menu template error:", e)
                     return str(resp)
 
             save_unserviceable_user(from_number)
@@ -118,6 +117,24 @@ def whatsapp():
         except Exception as e:
             print("Location error:", e)
             msg.body("⚠️ Couldn't detect your location. Try again with area name, pin or share your live location.")
+        return str(resp)
+
+    elif state["step"] == "awaiting_menu_selection":
+        if "menu" in incoming_msg:
+            try:
+                twilio_client.messages.create(
+                    from_=WHATSAPP_FROM,
+                    to=from_number,
+                    content_sid="HX3350e7c4b8fdd9cce155b0c614fe6b7e"  # catalog template
+                )
+            except Exception as e:
+                print("Catalog template error:", e)
+                msg.body("⚠️ Couldn't load the catalog. Please try again later.")
+        elif "main menu" in incoming_msg:
+            msg.body("🔁 Back to main menu. Type 'hi' to restart.")
+            user_states[from_number] = {"step": "start"}
+        else:
+            msg.body("🤖 Please tap a valid option from the previous message or type 'hi'.")
         return str(resp)
 
     else:
