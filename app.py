@@ -152,16 +152,24 @@ def whatsapp():
 
             return str(resp)
 
-        elif "checkout" in incoming_msg:
-            msg.body("🚚 Delivery or 🛍️ Pickup? Reply with 'delivery' or 'pickup'.")
-            state["step"] = "awaiting_delivery_option"
+        elif incoming_msg == "cart":
+            total = sum(int(x.split('₹')[-1]) for x in state["cart"])
+            items_text = "\n".join([f"- {item}" for item in state["cart"]])
+            msg.body(f"🛒 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}")
+            return str(resp)
 
         elif incoming_msg == "main menu":
             state["step"] = "start"
             return whatsapp()
 
+        elif incoming_msg == "checkout":
+            msg.body("🚚 Delivery or 🛍️ Pickup? Reply with 'delivery' or 'pickup'.")
+            state["step"] = "awaiting_delivery_option"
+            user_states[from_number] = state
+            return str(resp)
+
         else:
-            msg.body("🤖 Invalid input. Please type menu, item numbers, or checkout.")
+            msg.body("🤖 Invalid input. Please type menu, item numbers, cart, checkout or main menu.")
 
         user_states[from_number] = state
         return str(resp)
