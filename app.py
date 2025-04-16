@@ -103,7 +103,12 @@ def whatsapp():
                 if distance <= 2:
                     state["step"] = "awaiting_menu_selection"
                     state["branch"] = branch_name
-                    msg.body(f"✅ You're within delivery range of our *{branch_name}* branch!\n🍴 What would you like to explore?\n\n1. Best Sellers\n2. Full Menu\n3. Return to Main Menu\n\nReply with 1, 2, or 3.")
+                    msg.body(f"✅ You're within delivery range of our *{branch_name}* branch!")
+                    twilio_client.messages.create(
+                        from_=WHATSAPP_FROM,
+                        to=from_number,
+                        content_sid="HXe5ce9a647ed912eb5c398e2ccd15fac3"
+                    )
                     user_states[from_number] = state
                     return str(resp)
 
@@ -117,22 +122,7 @@ def whatsapp():
         return str(resp)
 
     elif state["step"] == "awaiting_menu_selection":
-        if incoming_msg == "1":
-            msg.body("🔥 *Best Sellers* 🔥\n\n1. Fruit Custard (220g) – ₹120\n2. Nutty Custard Ice Cream (220g) – ₹100\n3. Apricot Delight (220g) – ₹170\n\nReply with item numbers (e.g., 1,2) to add to cart.")
-        elif incoming_msg == "2":
-            menu_text = (
-                "🍧 *Full Menu* 🍧\n\n"
-                "4. Fruit Pop Mini Oatmeal (220g) - ₹140\n"
-                "5. Choco Banana Oatmeal (320g) - ₹180\n"
-                "6. Classic Custard Bowl (250ml) - ₹90\n"
-                "7. Watermelon Juice (300ml) - ₹129\n\n"
-                "👉 Reply with item numbers (e.g., 4,6,7) to add to cart."
-            )
-            msg.body(menu_text)
-        elif incoming_msg == "3":
-            msg.body("🔁 Back to main menu. Type 'hi' to restart.")
-            user_states[from_number] = {"step": "start", "cart": []}
-        elif any(x.strip() in menu_items for x in incoming_msg.split(",")):
+        if any(x.strip() in menu_items for x in incoming_msg.split(",")):
             added = []
             for item_num in incoming_msg.split(","):
                 item_num = item_num.strip()
@@ -140,21 +130,30 @@ def whatsapp():
                     item_name, price = menu_items[item_num]
                     state["cart"].append(f"{item_name} – ₹{price}")
                     added.append(item_name)
-            msg.body(f"✅ Added: {', '.join(added)}\n🛒 Your cart has {len(state['cart'])} item(s).\nType another item number to add more or type 'cart' to view cart.")
-        elif "cart" in incoming_msg:
-            if not state["cart"]:
-                msg.body("🛒 Your cart is empty. Add items first.")
-            else:
-                total = sum(int(x.split('₹')[-1]) for x in state["cart"])
-                items_text = "\n".join([f"- {item}" for item in state["cart"]])
-                msg.body(f"🧾 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}\n\nReply with 'checkout' to proceed or 'menu' to return to menu.")
+            user_states[from_number] = state
+
+            total = sum(int(x.split('₹')[-1]) for x in state["cart"])
+            items_text = "\n".join([f"- {item}" for item in state["cart"]])
+            msg.body(f"✅ Added: {', '.join(added)}\n🛒 Your cart has {len(state['cart'])} item(s).\n\n🧾 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}")
+
+            try:
+                twilio_client.messages.create(
+                    from_=WHATSAPP_FROM,
+                    to=from_number,
+                    content_sid="HXb3ef2c569aa925b76195f95d5f06eeb8"
+                )
+            except Exception as e:
+                print("Cart template error:", e)
+
+            return str(resp)
+
         elif "menu" in incoming_msg:
             msg.body("🔁 What would you like to explore?\n\n1. Best Sellers\n2. Full Menu\n3. Return to Main Menu")
         elif "checkout" in incoming_msg:
             msg.body("🚚 Delivery or 🛍️ Pickup? Reply with 'delivery' or 'pickup'.")
             state["step"] = "awaiting_delivery_option"
         else:
-            msg.body("🤖 Invalid input. Please reply with item numbers, 'cart' or 'menu'.")
+            msg.body("🤖 Invalid input. Please reply with item numbers, 'cart', 'menu', or 'checkout'.")
         user_states[from_number] = state
         return str(resp)
 
