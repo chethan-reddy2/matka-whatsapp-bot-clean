@@ -150,7 +150,7 @@ def whatsapp():
             except Exception as e:
                 print("Cart template error:", e)
 
-            return str(resp)
+            return ""
 
         elif incoming_msg == "cart":
             total = sum(int(x.split('₹')[-1]) for x in state["cart"])
