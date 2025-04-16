@@ -19,11 +19,11 @@ KITCHEN_WHATSAPP = 'whatsapp:+917671011599'
 MANAGER_WHATSAPP = 'whatsapp:+918885112242'
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
-# Templates
-TEMPLATE_GREETING = "fruitcustard_greeting"
-TEMPLATE_ORDERING = "fruitcustard_ordering"
-TEMPLATE_CART = "fruitcustard_cart"
-TEMPLATE_DELIVERY = "fruitcustard_takeaway_delivery"
+# Templates - content_sid
+TEMPLATE_GREETING = "HXb044cc05b74e2472d4c5838d94c8c6c4"
+TEMPLATE_ORDERING = "HXe5ce9a647ed912eb5c398e2ccd15fac3"
+TEMPLATE_CART = "HXb3ef2c569aa925b76195f95d5f06eeb8"
+TEMPLATE_DELIVERY = "HX6a4548eddff22056b5f4727db8ce5dcd"
 
 # --------------------- GOOGLE MAPS -----------------------
 gmaps = googlemaps.Client(key="AIzaSyCuUz9N78WZAT1N38ffIDkbySI3_0zkZgE")
@@ -114,7 +114,7 @@ def whatsapp():
         return str(resp)
 
     if incoming_msg in ["hi", "hello"] or state["step"] == "start":
-        twilio_client.messages.create(from_=WHATSAPP_FROM, to=from_number, template=TEMPLATE_GREETING)
+        twilio_client.messages.create(from_=WHATSAPP_FROM, to=from_number, content_sid=TEMPLATE_GREETING)
         user_states[from_number] = {"step": "awaiting_location", "cart": []}
         return ""
 
@@ -135,7 +135,7 @@ def whatsapp():
                     state["step"] = "awaiting_cart"
                     state["branch"] = branch_name
                     user_states[from_number] = state
-                    twilio_client.messages.create(from_=WHATSAPP_FROM, to=from_number, template=TEMPLATE_ORDERING)
+                    twilio_client.messages.create(from_=WHATSAPP_FROM, to=from_number, content_sid=TEMPLATE_ORDERING)
                     return ""
 
             save_unserviceable_user(from_number)
@@ -152,7 +152,7 @@ def whatsapp():
             item_name, price = menu_items[incoming_msg]
             state["cart"].append(f"{item_name} - ₹{price}")
             user_states[from_number] = state
-            twilio_client.messages.create(from_=WHATSAPP_FROM, to=from_number, template=TEMPLATE_CART)
+            twilio_client.messages.create(from_=WHATSAPP_FROM, to=from_number, content_sid=TEMPLATE_CART)
             return ""
 
     elif incoming_msg == "checkout":
@@ -162,7 +162,7 @@ def whatsapp():
         state["order_id"] = order_id
         state["total_price"] = total_price
         user_states[from_number] = state
-        twilio_client.messages.create(from_=WHATSAPP_FROM, to=from_number, template=TEMPLATE_DELIVERY)
+        twilio_client.messages.create(from_=WHATSAPP_FROM, to=from_number, content_sid=TEMPLATE_DELIVERY)
         return ""
 
     elif state["step"] == "awaiting_delivery_option":
