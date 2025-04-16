@@ -86,7 +86,11 @@ def whatsapp():
             if latitude and longitude:
                 user_coords = (float(latitude), float(longitude))
             else:
+                if not incoming_msg:
+                    raise Exception("No location input")
                 geo = gmaps.geocode(incoming_msg)
+                if not geo or "geometry" not in geo[0]:
+                    raise Exception("Invalid location format")
                 loc = geo[0]['geometry']['location']
                 user_coords = (loc['lat'], loc['lng'])
 
@@ -114,7 +118,7 @@ def whatsapp():
             return str(resp)
         except Exception as e:
             print("Location error:", e)
-            msg.body("⚠️ Couldn't detect your location. Please try again.")
+            msg.body("⚠️ Couldn't detect your location. Please send your live location or type your area name again.")
             return str(resp)
 
     # Menu
