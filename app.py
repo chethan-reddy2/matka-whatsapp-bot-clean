@@ -18,7 +18,11 @@ twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
 # --------------------- GOOGLE MAPS -----------------------
 gmaps = googlemaps.Client(key="AIzaSyCuUz9N78WZAT1N38ffIDkbySI3_0zkZgE")
-KITCHEN_LOCATION = (17.47017929652291, 78.35265935225998)  # Updated Kondapur Coordinates
+BRANCHES = {
+    "Kondapur": (17.453049, 78.395519),
+    "Madhapur": (17.451883, 78.394328),
+    "Manikonda": (17.403894, 78.390795)
+}
 
 # --------------------- CSV LOGGER -----------------------
 def save_order_to_csv(phone, item, address, timestamp):
@@ -28,6 +32,11 @@ def save_order_to_csv(phone, item, address, timestamp):
             writer.writerow([phone, item, address, timestamp])
     except Exception as e:
         print("CSV logging error:", e)
+
+def save_unserviceable_user(phone):
+    with open("unserviceable_users.csv", mode="a", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow([phone, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
 # --------------------- MENU -----------------------
 menu_items = {
@@ -53,21 +62,8 @@ def whatsapp():
     state = user_states.get(from_number, {"step": "start"})
 
     if incoming_msg in ["hi", "hello"] or state["step"] == "start":
-        menu_text = "\n".join([f"{k}. {v}" for k, v in menu_items.items()])
-        msg.body(f"👋 Welcome to Matka Foods!\nHere’s our menu:\n\n{menu_text}\n\nReply with the item number to order.")
-        user_states[from_number] = {"step": "awaiting_item"}
-        return str(resp)
-
-    elif state["step"] == "awaiting_item":
-        if incoming_msg in menu_items:
-            selected_item = menu_items[incoming_msg]
-            user_states[from_number] = {
-                "step": "awaiting_location",
-                "item": selected_item
-            }
-            msg.body(f"🍽️ You selected: {selected_item}\n\n📍 Please send your current location or area name.")
-        else:
-            msg.body("❌ Invalid selection. Please choose a valid item number.")
+        msg.body("👋 Welcome to Fruit Custard! We deliver from Kondapur, Madhapur & Manikonda branches.\n\n📍 Please share your live location or area name so we can check if we deliver to you.")
+        user_states[from_number] = {"step": "awaiting_location"}
         return str(resp)
 
     elif state["step"] == "awaiting_location":
@@ -81,37 +77,29 @@ def whatsapp():
                 loc = loc_data[0]["geometry"]["location"]
                 user_coords = (loc["lat"], loc["lng"])
 
-            distance = geodesic(KITCHEN_LOCATION, user_coords).km
-            if distance <= 3:
-                user_states[from_number]["step"] = "awaiting_address"
-                msg.body(f"✅ You're {round(distance, 2)} km away — within our delivery zone!\nPlease send your full delivery address.")
-            else:
-                msg.body(f"❌ You're {round(distance, 2)} km away — outside our 3 km delivery zone.")
-                user_states[from_number] = {"step": "start"}
+            for branch_name, branch_coords in BRANCHES.items():
+                distance = geodesic(user_coords, branch_coords).km
+                if distance <= 2:
+                    user_states[from_number] = {
+                        "step": "awaiting_order",
+                        "branch": branch_name,
+                        "location": user_coords
+                    }
+                    msg.body(f"✅ You're within 2 km of our *{branch_name}* branch! 🎉\nWhat would you like to do today?\n\nReply with: Order / Takeaway / Bulk Order / Other Query")
+                    return str(resp)
+
+            # Out of range for all branches
+            save_unserviceable_user(from_number)
+            user_states[from_number] = {"step": "start"}
+            msg.body("❌ Sorry, we don’t currently deliver to your area. We'll notify you once we expand! 🗺️")
+            return str(resp)
         except Exception as e:
             print("Location error:", e)
-            msg.body("⚠️ Couldn't detect your location. Try again with area name, pin or share your current location.")
+            msg.body("⚠️ Couldn't detect your location. Try again with area name, pin or share your live location.")
         return str(resp)
 
-    elif state["step"] == "awaiting_address":
-        address = incoming_msg
-        item = state["item"]
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        msg.body(f"✅ Order confirmed for {item}.\n📍 Delivery to: {address}\nThanks for ordering with Matka Foods!")
-
-        try:
-            twilio_client.messages.create(
-                body=f"📢 New Order Received!\n🍽️ Item: {item}\n📞 Customer: {from_number}\n📍 Address: {address}\n🕒 Time: {timestamp}",
-                from_=WHATSAPP_FROM,
-                to=KITCHEN_WHATSAPP
-            )
-        except Exception as e:
-            print("Twilio error:", e)
-
-        save_order_to_csv(from_number, item, address, timestamp)
-
-        user_states[from_number] = {"step": "start"}
+    elif state["step"] == "awaiting_order":
+        msg.body("🛍️ Ordering not implemented yet. Please reply 'hi' to restart.")
         return str(resp)
 
     else:
