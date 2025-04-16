@@ -7,6 +7,7 @@ import datetime
 from twilio.rest import Client
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import json
 
 app = Flask(__name__)
 
@@ -22,10 +23,23 @@ twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 gmaps = googlemaps.Client(key="AIzaSyCuUz9N78WZAT1N38ffIDkbySI3_0zkZgE")
 KITCHEN_LOCATION = (17.453049, 78.395519)
 
-# Google Sheets Setup
+# Google Sheets Setup (Inline JSON Credentials)
 def connect_to_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope)
+    service_account_info = {
+      "type": "service_account",
+      "project_id": "bubbly-subject-438713-a8",
+      "private_key_id": "e2dc343b2514515f567677e204ec6e0a7e8d1730",
+      "private_key": """-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDhfLi7jVhcskqH\njsRc88Iy70k+EJ8gyEsBaJTq9PX81hZNwNRkLBeVVKbnXidGgErOgecTBqNiN81e\n... (truncated for brevity) ...\n-----END PRIVATE KEY-----""",
+      "client_email": "matka-foods-orders@bubbly-subject-438713-a8.iam.gserviceaccount.com",
+      "client_id": "102405415436373978451",
+      "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+      "token_uri": "https://oauth2.googleapis.com/token",
+      "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+      "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/matka-foods-orders@bubbly-subject-438713-a8.iam.gserviceaccount.com",
+      "universe_domain": "googleapis.com"
+    }
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
     client = gspread.authorize(creds)
     return client.open("Matka Orders").worksheet("Matka Orders")
 
@@ -53,14 +67,12 @@ def whatsapp():
 
     state = user_states.get(from_number, {"step": "start"})
 
-    # STEP 1: Show menu
     if incoming_msg in ["hi", "hello"] or state["step"] == "start":
         menu_text = "\n".join([f"{k}. {v}" for k, v in menu_items.items()])
         msg.body(f"👋 Welcome to Matka Foods!\nHere’s our menu:\n\n{menu_text}\n\nReply with the item number to order.")
         user_states[from_number] = {"step": "awaiting_item"}
         return str(resp)
 
-    # STEP 2: Select item
     elif state["step"] == "awaiting_item":
         if incoming_msg in menu_items:
             selected_item = menu_items[incoming_msg]
@@ -73,7 +85,6 @@ def whatsapp():
             msg.body("❌ Invalid selection. Please choose a valid item number.")
         return str(resp)
 
-    # STEP 3: Location check
     elif state["step"] == "awaiting_location":
         try:
             if latitude and longitude:
@@ -98,13 +109,11 @@ def whatsapp():
             msg.body("⚠️ Error checking your location. Try again.")
         return str(resp)
 
-    # STEP 4: Receive address & log order
     elif state["step"] == "awaiting_address":
         address = incoming_msg
         item = state["item"]
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Save to Google Sheets
         try:
             sheet = connect_to_sheet()
             sheet.append_row([from_number, item, address, timestamp])
@@ -113,12 +122,11 @@ def whatsapp():
             msg.body("⚠️ Could not log your order to Google Sheets. Please try again.")
             return str(resp)
 
-        # Send alert to kitchen
         try:
             order_msg = (
                 f"📢 *New Order Received!*\n"
                 f"🍽️ Item: {item}\n"
-                f"📞 Customer: {from_number}\n"
+                f"📾 Customer: {from_number}\n"
                 f"📍 Address: {address}\n"
                 f"🕒 Time: {timestamp}"
             )
@@ -134,11 +142,9 @@ def whatsapp():
         user_states[from_number] = {"step": "start"}
         return str(resp)
 
-    # Fallback
     else:
         msg.body("🤖 Type 'hi' to start your order.")
         return str(resp)
 
-# --------------------- RUN --------------------------
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=os.environ.get('PORT', 10000))
