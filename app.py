@@ -141,13 +141,11 @@ def whatsapp():
             items_text = "\n".join([f"- {item}" for item in state["cart"]])
             msg.body(f"✅ Added: {', '.join(added)}\n🛒 Your cart has {len(state['cart'])} item(s).\n\n🧾 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}")
 
-            # Separate response for template after message body
-            resp2 = MessagingResponse()
             try:
                 twilio_client.messages.create(
                     from_=WHATSAPP_FROM,
                     to=from_number,
-                    content_sid="HXb3ef2c569aa925b76195f95d5f06eeb8"
+                    content_sid="HX488e35d627419c837ed10a025ccf411d"
                 )
             except Exception as e:
                 print("Cart template error:", e)
