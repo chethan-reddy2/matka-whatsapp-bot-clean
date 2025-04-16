@@ -25,11 +25,11 @@ BRANCHES = {
 }
 
 # --------------------- CSV LOGGER -----------------------
-def save_order_to_csv(phone, item, address, timestamp):
+def save_order_to_csv(phone, items, address, timestamp):
     try:
         with open("orders.csv", mode="a", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
-            writer.writerow([phone, item, address, timestamp])
+            writer.writerow([phone, "; ".join(items), address, timestamp])
     except Exception as e:
         print("CSV logging error:", e)
 
@@ -40,6 +40,17 @@ def save_unserviceable_user(phone):
 
 user_states = {}
 
+# --------------------- MENU ITEMS -----------------------
+menu_items = {
+    "1": ("Fruit Custard (220g)", 120),
+    "2": ("Nutty Custard Ice Cream (220g)", 100),
+    "3": ("Apricot Delight (220g)", 170),
+    "4": ("Fruit Pop Mini Oatmeal (220g)", 140),
+    "5": ("Choco Banana Oatmeal (320g)", 180),
+    "6": ("Classic Custard Bowl (250ml)", 90),
+    "7": ("Watermelon Juice (300ml)", 129)
+}
+
 # --------------------- WHATSAPP ROUTE -----------------------
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
@@ -48,37 +59,33 @@ def whatsapp():
     latitude = request.values.get("Latitude")
     longitude = request.values.get("Longitude")
 
-    print("Incoming Payload:", dict(request.values))
-
     resp = MessagingResponse()
     msg = resp.message()
-    state = user_states.get(from_number, {"step": "start"})
+    state = user_states.get(from_number, {"step": "start", "cart": []})
 
     if incoming_msg in ["hi", "hello"] or state["step"] == "start":
         try:
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=from_number,
-                content_sid="HXb044cc05b74e2472d4c5838d94c8c6c4"  # greeting template
+                content_sid="HXb044cc05b74e2472d4c5838d94c8c6c4"
             )
-        except Exception as e:
-            print("Template send error:", e)
+        except:
             msg.body("👋 Welcome to Fruit Custard! Please share your live location or area name so we can check if we deliver to you.")
-        user_states[from_number] = {"step": "awaiting_post_greeting"}
+        user_states[from_number] = {"step": "awaiting_post_greeting", "cart": []}
         return str(resp)
 
     elif state["step"] == "awaiting_post_greeting":
         if "order food" in incoming_msg:
             msg.body("📍 Please share your live location or type your area name.")
-            user_states[from_number] = {"step": "awaiting_location"}
-            return str(resp)
+            state["step"] = "awaiting_location"
         elif "bulk order" in incoming_msg or "other query" in incoming_msg:
-            msg.body("📲 For bulk orders or other queries, please contact us directly at https://wa.me/+918688641919")
-            user_states[from_number] = {"step": "start"}
-            return str(resp)
+            msg.body("📲 For bulk orders or other queries, please contact us at https://wa.me/+918688641919")
+            state["step"] = "start"
         else:
-            msg.body("🤖 Please choose one of the options from the menu or type 'hi' to restart.")
-            return str(resp)
+            msg.body("🤖 Please choose an option or type 'hi' to restart.")
+        user_states[from_number] = state
+        return str(resp)
 
     elif state["step"] == "awaiting_location":
         try:
@@ -94,46 +101,56 @@ def whatsapp():
             for branch_name, branch_coords in BRANCHES.items():
                 distance = geodesic(user_coords, branch_coords).km
                 if distance <= 2:
-                    user_states[from_number] = {
-                        "step": "awaiting_menu_selection",
-                        "branch": branch_name,
-                        "location": user_coords
-                    }
-                    msg.body(f"✅ You're within delivery range of our *{branch_name}* branch!\n🍴 What would you like to explore?\n\n1. Best Sellers\n2. Full Menu\n3. Return to Main Menu\n\nReply with the number (1/2/3).")
+                    state["step"] = "awaiting_menu_selection"
+                    state["branch"] = branch_name
+                    msg.body(f"✅ You're within range of our *{branch_name}* branch!\n🍴 What would you like to explore?\n\n1. Best Sellers\n2. Full Menu\n3. Return to Main Menu\n\nReply with 1, 2, or 3.")
+                    user_states[from_number] = state
                     return str(resp)
 
             save_unserviceable_user(from_number)
-            user_states[from_number] = {"step": "start"}
-            msg.body("❌ Sorry, we don’t currently deliver to your area. We'll notify you once we expand! 🗺️")
+            msg.body("❌ Sorry, we don’t deliver to your area yet. We'll notify you once we expand! 🗺️")
+            user_states[from_number] = {"step": "start", "cart": []}
             return str(resp)
         except Exception as e:
             print("Location error:", e)
-            msg.body("⚠️ Couldn't detect your location. Try again with area name, pin or share your live location.")
+            msg.body("⚠️ Couldn't detect your location. Try again or type your area name.")
         return str(resp)
 
     elif state["step"] == "awaiting_menu_selection":
         if incoming_msg == "1":
-            msg.body("🔥 *Best Sellers* 🔥\n\n• Fruit Custard (220g) – ₹120\n• Nutty Custard Ice Cream (220g) – ₹100\n• Apricot Delight (220g) – ₹170\n\nReply with item number to add to cart or type 'menu' to view full options.")
+            msg.body("🔥 *Best Sellers* 🔥\n\n1. Fruit Custard (220g) – ₹120\n2. Nutty Custard Ice Cream (220g) – ₹100\n3. Apricot Delight (220g) – ₹170\n\nReply with item number to add to cart.")
         elif incoming_msg == "2":
             menu_text = (
-                "🍧 *Fruit Custard Menu* 🍧\n\n"
-                "🥣 *Oatmeals*:\n"
-                "1. Fruit Pop Mini (220g) - ₹140\n"
-                "2. Choco Banana Oatmeal (320g) - ₹180\n\n"
-                "🍨 *Custard Delicacies*:\n"
-                "3. Classic Custard Bowl (250ml) - ₹90\n"
-                "4. Nutty Custard Ice Cream (220g) - ₹100\n"
-                "5. Apricot Delight (220g) - ₹170\n\n"
-                "🧃 *Juices*:\n"
-                "6. Watermelon Juice (300ml) - ₹129\n\n"
-                "👉 Reply with item numbers separated by commas to add to cart."
+                "🍧 *Full Menu* 🍧\n\n"
+                "4. Fruit Pop Mini Oatmeal (220g) - ₹140\n"
+                "5. Choco Banana Oatmeal (320g) - ₹180\n"
+                "6. Classic Custard Bowl (250ml) - ₹90\n"
+                "7. Watermelon Juice (300ml) - ₹129\n\n"
+                "👉 Reply with item number to add to cart."
             )
             msg.body(menu_text)
         elif incoming_msg == "3":
             msg.body("🔁 Back to main menu. Type 'hi' to restart.")
-            user_states[from_number] = {"step": "start"}
+            user_states[from_number] = {"step": "start", "cart": []}
+        elif incoming_msg in menu_items:
+            item_name, price = menu_items[incoming_msg]
+            state["cart"].append(f"{item_name} – ₹{price}")
+            msg.body(f"✅ Added *{item_name}* to cart.\n🛒 Your cart has {len(state['cart'])} item(s).\n\nType another item number to add more or type 'cart' to view cart.")
+        elif "cart" in incoming_msg:
+            if not state["cart"]:
+                msg.body("🛒 Your cart is empty. Add items first.")
+            else:
+                total = sum(int(x.split('₹')[-1]) for x in state["cart"])
+                items_text = "\n".join([f"- {item}" for item in state["cart"]])
+                msg.body(f"🧾 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}\n\nReply with 'checkout' to proceed or 'menu' to return to menu.")
+        elif "menu" in incoming_msg:
+            msg.body("🔁 What would you like to explore?\n\n1. Best Sellers\n2. Full Menu\n3. Return to Main Menu")
+        elif "checkout" in incoming_msg:
+            msg.body("🚚 Delivery or 🛍️ Pickup? Reply with 'delivery' or 'pickup'.")
+            state["step"] = "awaiting_delivery_option"
         else:
-            msg.body("🤖 Invalid selection. Reply with 1, 2, or 3.")
+            msg.body("🤖 Invalid input. Please reply with a valid item number or type 'cart' to view cart.")
+        user_states[from_number] = state
         return str(resp)
 
     else:
