@@ -143,13 +143,16 @@ def whatsapp():
                 f"✅ Added: {', '.join(added)}\n"
                 f"🛒 Your cart has {len(state['cart'])} item(s).\n\n"
                 f"🧾 *Your Cart:*\n{items_text}\n\n"
-                f"💰 Total: ₹{total}\n\n"
-                "Please reply with:\n"
-                "1️⃣ View Cart\n"
-                "2️⃣ Menu\n"
-                "3️⃣ Main Menu\n"
-                "4️⃣ Checkout"
+                f"💰 Total: ₹{total}"
             )
+            try:
+                twilio_client.messages.create(
+                    from_=WHATSAPP_FROM,
+                    to=from_number,
+                    content_sid="HX488e35d627419c837ed10a025ccf411d"
+                )
+            except Exception as e:
+                print("Template send error:", e)
             return str(resp)
 
         elif incoming_msg == "1":
