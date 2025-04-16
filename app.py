@@ -103,7 +103,7 @@ def whatsapp():
                 if distance <= 2:
                     state["step"] = "awaiting_menu_selection"
                     state["branch"] = branch_name
-                    msg.body(f"✅ You're within delivery range of our {branch_name} branch!")
+                    msg.body(f"✅ You're within delivery range of our *{branch_name}* branch!")
                     twilio_client.messages.create(
                         from_=WHATSAPP_FROM,
                         to=from_number,
@@ -124,41 +124,32 @@ def whatsapp():
     elif state["step"] == "awaiting_menu_selection":
         if incoming_msg == "menu" or incoming_msg == "2":
             menu_text = "\n".join([f"{k}. {v[0]} – ₹{v[1]}" for k, v in menu_items.items()])
-            msg.body(f"📋 Full Menu:\n{menu_text}\n\nType item numbers separated by commas to add to cart.")
-            user_states[from_number] = state
-            return str(resp)
-
+            msg.body(f"📋 *Full Menu:*\n{menu_text}\n\nType item numbers separated by commas to add to cart.")
         elif incoming_msg == "1":
             total = sum(int(x.split('₹')[-1]) for x in state["cart"])
             items_text = "\n".join([f"- {item}" for item in state["cart"]])
             msg.body(
-                f"🛒 Your Cart:\n{items_text}\n\n💰 Total: ₹{total}\n\nPlease reply with:\n1️⃣ View Cart\n2️⃣ Menu\n3️⃣ Main Menu\n4️⃣ Checkout\n5️⃣ Clear Cart\n6️⃣ Edit Cart"
+                f"🛒 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}\n\n1️⃣ View Cart\n2️⃣ Menu\n3️⃣ Main Menu\n4️⃣ Checkout\n5️⃣ Clear Cart\n6️⃣ Delete Item"
             )
-            return str(resp)
-
         elif incoming_msg == "3":
             state["step"] = "start"
             user_states[from_number] = state
             return whatsapp()
-
         elif incoming_msg == "4":
-            msg.body("🚚 Choose delivery mode:\n1️⃣ Pickup\n2️⃣ Delivery\n3️⃣ View Cart\n4️⃣ Menu\n5️⃣ Main Menu")
+            msg.body("🛍️ 1️⃣ Pickup\n🚚 2️⃣ Delivery\n\n3️⃣ Main Menu\n4️⃣ Menu\n5️⃣ View Cart")
             state["step"] = "awaiting_delivery_option"
-            user_states[from_number] = state
-            return str(resp)
-
         elif incoming_msg == "5":
-            state = {"step": "start", "cart": []}
+            state["cart"] = []
+            state["step"] = "start"
             user_states[from_number] = state
             return whatsapp()
-
         elif incoming_msg == "6":
-            items = "\n".join([f"{i+1}. {item}" for i, item in enumerate(state["cart"])])
-            msg.body(f"🧾 Your cart:\n{items}\n\nSend the item number to remove from your cart.")
-            state["step"] = "edit_cart"
-            user_states[from_number] = state
-            return str(resp)
-
+            if not state["cart"]:
+                msg.body("🧹 Your cart is empty.")
+            else:
+                item_list = "\n".join([f"{idx+1}. {item}" for idx, item in enumerate(state["cart"])])
+                msg.body(f"🧾 Select item number to delete:\n{item_list}")
+                state["step"] = "awaiting_item_deletion"
         elif any(x.strip() in menu_items for x in incoming_msg.split(",")):
             added = []
             for item_num in incoming_msg.split(","):
@@ -167,60 +158,45 @@ def whatsapp():
                     item_name, price = menu_items[item_num]
                     state["cart"].append(f"{item_name} – ₹{price}")
                     added.append(item_name)
-            user_states[from_number] = state
-
             total = sum(int(x.split('₹')[-1]) for x in state["cart"])
             items_text = "\n".join([f"- {item}" for item in state["cart"]])
             msg.body(
-                f"✅ Added: {', '.join(added)}\n"
-                f"🛒 Your cart has {len(state['cart'])} item(s).\n\n"
-                f"🧾 Your Cart:\n{items_text}\n\n"
-                f"💰 Total: ₹{total}\n\n"
-                "Please reply with:\n"
-                "1️⃣ View Cart\n"
-                "2️⃣ Menu\n"
-                "3️⃣ Main Menu\n"
-                "4️⃣ Checkout\n"
-                "5️⃣ Clear Cart\n"
-                "6️⃣ Edit Cart"
+                f"✅ Added: {', '.join(added)}\n🛒 Your cart has {len(state['cart'])} item(s).\n\n🧾 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}\n\n1️⃣ View Cart\n2️⃣ Menu\n3️⃣ Main Menu\n4️⃣ Checkout\n5️⃣ Clear Cart\n6️⃣ Delete Item"
             )
-            return str(resp)
-
         else:
-            msg.body("🤖 Invalid input. Please type menu, item numbers, or choose 1–6.")
-            return str(resp)
+            msg.body("🤖 Invalid input. Choose from the available options.")
+        user_states[from_number] = state
+        return str(resp)
 
-    elif state["step"] == "edit_cart":
+    elif state["step"] == "awaiting_item_deletion":
         try:
-            index = int(incoming_msg) - 1
-            if 0 <= index < len(state["cart"]):
-                removed = state["cart"].pop(index)
+            idx = int(incoming_msg.strip()) - 1
+            if 0 <= idx < len(state["cart"]):
+                removed = state["cart"].pop(idx)
                 msg.body(f"🗑️ Removed: {removed}")
             else:
-                msg.body("❌ Invalid item number.")
+                msg.body("❌ Invalid number.")
         except:
-            msg.body("⚠️ Please enter a valid item number to remove.")
-
+            msg.body("⚠️ Please enter a valid item number.")
         state["step"] = "awaiting_menu_selection"
         user_states[from_number] = state
         return whatsapp()
 
     elif state["step"] == "awaiting_delivery_option":
-        if incoming_msg == "1" or "pickup" in incoming_msg:
-            msg.body("🛍️ You chose Pickup. Please arrive at your selected branch in 10–15 mins with this message.")
-            state["step"] = "start"
-        elif incoming_msg == "2" or "delivery" in incoming_msg:
-            msg.body("🚚 You chose Delivery. Please send your full delivery address.")
+        if incoming_msg == "1":
+            msg.body("✅ Pickup confirmed. Please visit your selected branch in 15 minutes. Thank you!")
+            state = {"step": "start", "cart": []}
+        elif incoming_msg == "2":
+            msg.body("📍 Please share your full delivery address.")
             state["step"] = "awaiting_address"
         elif incoming_msg == "3":
             return whatsapp()
         elif incoming_msg == "4":
-            msg.body("📋 Send 'menu' to view full menu again.")
+            state["step"] = "awaiting_menu_selection"
         elif incoming_msg == "5":
-            state["step"] = "start"
             return whatsapp()
         else:
-            msg.body("❓ Please reply with option number (1–5).")
+            msg.body("Please reply with 1 for Pickup or 2 for Delivery.")
         user_states[from_number] = state
         return str(resp)
 
@@ -229,10 +205,10 @@ def whatsapp():
         item_list = state["cart"]
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        msg.body(f"✅ Order confirmed for:\n{chr(10).join(item_list)}\n📍 Delivery to: {address}\n🕒 ETA: 20–25 mins")
+        msg.body(f"✅ Order confirmed:\n{chr(10).join(item_list)}\n📍 Address: {address}\n🕒 ETA: 20–25 mins")
         try:
             twilio_client.messages.create(
-                body=f"📢 New Order Received!\n🍽️ Items: {', '.join(item_list)}\n📞 Customer: {from_number}\n📍 Address: {address}\n🕒 Time: {timestamp}",
+                body=f"📢 Order Received:\n{', '.join(item_list)}\n📞 {from_number}\n📍 {address}\n🕒 {timestamp}",
                 from_=WHATSAPP_FROM,
                 to=KITCHEN_WHATSAPP
             )
@@ -241,7 +217,7 @@ def whatsapp():
 
         save_order_to_csv(from_number, item_list, address, timestamp)
         user_states[from_number] = {"step": "start", "cart": []}
-        return str(resp)
+        return whatsapp()
 
     else:
         msg.body("🤖 Type 'hi' to start.")
