@@ -125,6 +125,35 @@ def whatsapp():
         if incoming_msg == "menu":
             menu_text = "\n".join([f"{k}. {v[0]} – ₹{v[1]}" for k, v in menu_items.items()])
             msg.body(f"📋 *Full Menu:*\n{menu_text}\n\nType item numbers separated by commas to add to cart.")
+            user_states[from_number] = state
+            return str(resp)
+
+        elif incoming_msg == "1":
+            total = sum(int(x.split('₹')[-1]) for x in state["cart"])
+            items_text = "\n".join([f"- {item}" for item in state["cart"]])
+            msg.body(f"🛒 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}")
+            return str(resp)
+
+        elif incoming_msg == "2":
+            state["step"] = "awaiting_menu_selection"
+            user_states[from_number] = state
+            return whatsapp()
+
+        elif incoming_msg == "3":
+            state["step"] = "start"
+            user_states[from_number] = state
+            return whatsapp()
+
+        elif incoming_msg == "4":
+            msg.body("🚚 Delivery or 🛍️ Pickup? Reply with 'delivery' or 'pickup'.")
+            state["step"] = "awaiting_delivery_option"
+            user_states[from_number] = state
+            return str(resp)
+
+        elif incoming_msg == "clear cart":
+            state["cart"] = []
+            msg.body("🧹 Your cart has been cleared. Type 'menu' to start adding again.")
+            user_states[from_number] = state
             return str(resp)
 
         elif any(x.strip() in menu_items for x in incoming_msg.split(",")):
@@ -148,35 +177,14 @@ def whatsapp():
                 "1️⃣ View Cart\n"
                 "2️⃣ Menu\n"
                 "3️⃣ Main Menu\n"
-                "4️⃣ Checkout"
+                "4️⃣ Checkout\n"
+                "Type 'clear cart' to reset."
             )
             return str(resp)
 
-        elif incoming_msg == "1":
-            total = sum(int(x.split('₹')[-1]) for x in state["cart"])
-            items_text = "\n".join([f"- {item}" for item in state["cart"]])
-            msg.body(f"🛒 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}")
-            return str(resp)
-
-        elif incoming_msg == "2":
-            state["step"] = "awaiting_menu_selection"
-            return whatsapp()
-
-        elif incoming_msg == "3":
-            state["step"] = "start"
-            return whatsapp()
-
-        elif incoming_msg == "4":
-            msg.body("🚚 Delivery or 🛍️ Pickup? Reply with 'delivery' or 'pickup'.")
-            state["step"] = "awaiting_delivery_option"
-            user_states[from_number] = state
-            return str(resp)
-
         else:
-            msg.body("🤖 Invalid input. Please type menu, item numbers, or choose an option from 1 to 4.")
-
-        user_states[from_number] = state
-        return str(resp)
+            msg.body("🤖 Invalid input. Please type menu, item numbers, or choose 1–4.")
+            return str(resp)
 
     else:
         msg.body("🤖 Type 'hi' to start.")
