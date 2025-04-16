@@ -35,7 +35,8 @@ def log_unserviceable_user(number):
 # --------------------- ROUTE -----------------------
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
-    incoming_msg = request.values.get("Body", "").strip().lower()
+    payload = request.values.get("ButtonPayload") or request.values.get("InteractiveResponseId")
+    incoming_msg = (payload or request.values.get("Body", "")).strip().lower()
     from_number = request.values.get("From")
 
     state = user_states.get(from_number, {"step": "start"})
@@ -56,7 +57,12 @@ def whatsapp():
     elif state["step"] == "awaiting_intent":
         if incoming_msg in ["1", "order_food"]:
             user_states[from_number] = {"step": "awaiting_location"}
-            return "📍 Please send your location or area name."
+            twilio_client.messages.create(
+                from_=WHATSAPP_FROM,
+                to=from_number,
+                body="📍 Please send your location or area name."
+            )
+            return "Location request sent."
         elif incoming_msg in ["2", "bulk_order"]:
             user_states[from_number] = {"step": "done"}
             twilio_client.messages.create(
