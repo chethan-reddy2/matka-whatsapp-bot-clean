@@ -122,7 +122,12 @@ def whatsapp():
         return str(resp)
 
     elif state["step"] == "awaiting_menu_selection":
-        if any(x.strip() in menu_items for x in incoming_msg.split(",")):
+        if incoming_msg == "menu":
+            menu_text = "\n".join([f"{k}. {v[0]} – ₹{v[1]}" for k, v in menu_items.items()])
+            msg.body(f"📋 *Full Menu:*\n{menu_text}\n\nType item numbers separated by commas to add to cart.")
+            return str(resp)
+
+        elif any(x.strip() in menu_items for x in incoming_msg.split(",")):
             added = []
             for item_num in incoming_msg.split(","):
                 item_num = item_num.strip()
@@ -147,13 +152,17 @@ def whatsapp():
 
             return str(resp)
 
-        elif "menu" in incoming_msg:
-            msg.body("🔁 What would you like to explore?\n\n1. Best Sellers\n2. Full Menu\n3. Return to Main Menu")
         elif "checkout" in incoming_msg:
             msg.body("🚚 Delivery or 🛍️ Pickup? Reply with 'delivery' or 'pickup'.")
             state["step"] = "awaiting_delivery_option"
+
+        elif incoming_msg == "main menu":
+            state["step"] = "start"
+            return whatsapp()
+
         else:
-            msg.body("🤖 Invalid input. Please reply with item numbers, 'cart', 'menu', or 'checkout'.")
+            msg.body("🤖 Invalid input. Please type menu, item numbers, or checkout.")
+
         user_states[from_number] = state
         return str(resp)
 
