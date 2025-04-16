@@ -122,6 +122,9 @@ def whatsapp():
         try:
             if latitude and longitude:
                 user_coords = (float(latitude), float(longitude))
+            elif "," in incoming_msg:
+                parts = incoming_msg.split(",")
+                user_coords = (float(parts[0].strip()), float(parts[1].strip()))
             else:
                 loc_data = gmaps.geocode(incoming_msg)
                 if not loc_data:
@@ -144,66 +147,8 @@ def whatsapp():
             return str(resp)
         except Exception as e:
             print("Location error:", e)
-            msg.body("⚠️ Couldn't detect your location. Try again or type your area name.")
+            msg.body("⚠️ Couldn't detect your location. Try again with area name, or share lat,long format like '17.45, 78.39'.")
             return str(resp)
-
-    elif state["step"] == "awaiting_cart":
-        if incoming_msg in menu_items:
-            item_name, price = menu_items[incoming_msg]
-            state["cart"].append(f"{item_name} - ₹{price}")
-            user_states[from_number] = state
-            twilio_client.messages.create(from_=WHATSAPP_FROM, to=from_number, content_sid=TEMPLATE_CART)
-            return ""
-
-    elif incoming_msg == "checkout":
-        total_price = sum(int(item.split("₹")[-1]) for item in state["cart"])
-        order_id = str(uuid.uuid4())[:8]
-        state["step"] = "awaiting_delivery_option"
-        state["order_id"] = order_id
-        state["total_price"] = total_price
-        user_states[from_number] = state
-        twilio_client.messages.create(from_=WHATSAPP_FROM, to=from_number, content_sid=TEMPLATE_DELIVERY)
-        return ""
-
-    elif state["step"] == "awaiting_delivery_option":
-        delivery_fee = 20 if incoming_msg == "delivery" else 0
-        total = state["total_price"] + delivery_fee
-        state["step"] = "awaiting_address"
-        state["final_total"] = total
-        user_states[from_number] = state
-        msg.body(f"🧾 Order total including delivery: ₹{total}\nPlease send your full name and address to complete the order.")
-        return str(resp)
-
-    elif state["step"] == "awaiting_address":
-        address = incoming_msg
-        item = state["cart"]
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        order_id = state["order_id"]
-
-        save_order_to_csv(order_id, from_number, item, address, timestamp, "Pending")
-
-        msg.body(f"✅ Order Confirmed!\n🧾 ID: {order_id}\n📍 Address: {address}\n📦 Items: {'; '.join(item)}\n💰 Total: ₹{state['final_total']}")
-
-        alert = f"🍴 *New Order*\nID: {order_id}\nAddress: {address}\nItems: {'; '.join(item)}\nTotal: ₹{state['final_total']}"
-        for contact in [KITCHEN_WHATSAPP, MANAGER_WHATSAPP]:
-            try:
-                twilio_client.messages.create(body=alert, from_=WHATSAPP_FROM, to=contact)
-            except:
-                pass
-
-        def ask_feedback():
-            try:
-                twilio_client.messages.create(
-                    body="🙏 Hope you enjoyed your order! Please reply with your feedback ✨",
-                    from_=WHATSAPP_FROM,
-                    to=from_number
-                )
-            except:
-                pass
-
-        threading.Timer(3600, ask_feedback).start()
-        user_states[from_number] = {"step": "start", "cart": []}
-        return str(resp)
 
     msg.body("🤖 Type 'hi' to start.")
     return str(resp)
