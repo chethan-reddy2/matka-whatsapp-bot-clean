@@ -19,9 +19,9 @@ twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 # --------------------- GOOGLE MAPS -----------------------
 gmaps = googlemaps.Client(key="AIzaSyCuUz9N78WZAT1N38ffIDkbySI3_0zkZgE")
 BRANCHES = {
-    "Kondapur": (17.453049, 78.395519),
-    "Madhapur": (17.451883, 78.394328),
-    "Manikonda": (17.403894, 78.390795)
+    "Kondapur": (17.47019976442252, 78.35272372527311),
+    "Madhapur": (17.452121157758043, 78.39433952527278),
+    "Manikonda": (17.403904212354316, 78.39079508109451)
 }
 
 # --------------------- CSV LOGGER -----------------------
@@ -38,13 +38,6 @@ def save_unserviceable_user(phone):
         writer = csv.writer(file)
         writer.writerow([phone, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
-# --------------------- MENU -----------------------
-menu_items = {
-    "1": "Brownie (1 piece) - ₹150",
-    "2": "Itlu Bobbatlu (2 pieces) - ₹120",
-    "3": "Gulab Jamun Cheesecake (Slice) - ₹180",
-    "4": "Classic Custard (250ml Bowl) - ₹90"
-}
 user_states = {}
 
 # --------------------- WHATSAPP ROUTE -----------------------
@@ -62,7 +55,16 @@ def whatsapp():
     state = user_states.get(from_number, {"step": "start"})
 
     if incoming_msg in ["hi", "hello"] or state["step"] == "start":
-        msg.body("👋 Welcome to Fruit Custard! We deliver from Kondapur, Madhapur & Manikonda branches.\n\n📍 Please share your live location or area name so we can check if we deliver to you.")
+        # Send default greeting template using Twilio API
+        try:
+            twilio_client.messages.create(
+                from_=WHATSAPP_FROM,
+                to=from_number,
+                content_sid="HXb044cc05b74e2472d4c5838d94c8c6c4"  # fruitcustard_greeting
+            )
+        except Exception as e:
+            print("Template send error:", e)
+            msg.body("👋 Welcome to Fruit Custard! Please share your live location or area name so we can check if we deliver to you.")
         user_states[from_number] = {"step": "awaiting_location"}
         return str(resp)
 
@@ -81,14 +83,21 @@ def whatsapp():
                 distance = geodesic(user_coords, branch_coords).km
                 if distance <= 2:
                     user_states[from_number] = {
-                        "step": "awaiting_order",
+                        "step": "awaiting_order_selection",
                         "branch": branch_name,
                         "location": user_coords
                     }
-                    msg.body(f"✅ You're within 2 km of our *{branch_name}* branch! 🎉\nWhat would you like to do today?\n\nReply with: Order / Takeaway / Bulk Order / Other Query")
+                    try:
+                        twilio_client.messages.create(
+                            from_=WHATSAPP_FROM,
+                            to=from_number,
+                            content_sid="HXe5ce9a647ed912eb5c398e2ccd15fac3"  # fruitcustard_ordering
+                        )
+                    except Exception as e:
+                        print("Order options template error:", e)
+                        msg.body(f"You're within delivery range of our {branch_name} branch!\nReply with 'Best Sellers', 'Menu', or 'Main Menu'")
                     return str(resp)
 
-            # Out of range for all branches
             save_unserviceable_user(from_number)
             user_states[from_number] = {"step": "start"}
             msg.body("❌ Sorry, we don’t currently deliver to your area. We'll notify you once we expand! 🗺️")
@@ -96,10 +105,6 @@ def whatsapp():
         except Exception as e:
             print("Location error:", e)
             msg.body("⚠️ Couldn't detect your location. Try again with area name, pin or share your live location.")
-        return str(resp)
-
-    elif state["step"] == "awaiting_order":
-        msg.body("🛍️ Ordering not implemented yet. Please reply 'hi' to restart.")
         return str(resp)
 
     else:
