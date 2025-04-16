@@ -55,7 +55,6 @@ def whatsapp():
     state = user_states.get(from_number, {"step": "start"})
 
     if incoming_msg in ["hi", "hello"] or state["step"] == "start":
-        # Send default greeting template using Twilio API
         try:
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
@@ -65,8 +64,22 @@ def whatsapp():
         except Exception as e:
             print("Template send error:", e)
             msg.body("👋 Welcome to Fruit Custard! Please share your live location or area name so we can check if we deliver to you.")
-        user_states[from_number] = {"step": "awaiting_location"}
+        user_states[from_number] = {"step": "awaiting_post_greeting"}
         return str(resp)
+
+    # After greeting: decide based on button pressed
+    elif state["step"] == "awaiting_post_greeting":
+        if "order food" in incoming_msg:
+            msg.body("📍 Please share your live location or type your area name.")
+            user_states[from_number] = {"step": "awaiting_location"}
+            return str(resp)
+        elif "bulk order" in incoming_msg or "other query" in incoming_msg:
+            msg.body("📲 For bulk orders or other queries, please contact us directly at https://wa.me/+918688641919")
+            user_states[from_number] = {"step": "start"}
+            return str(resp)
+        else:
+            msg.body("🤖 Please choose one of the options from the menu or type 'hi' to restart.")
+            return str(resp)
 
     elif state["step"] == "awaiting_location":
         try:
