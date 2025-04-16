@@ -141,7 +141,8 @@ def whatsapp():
             items_text = "\n".join([f"- {item}" for item in state["cart"]])
             msg.body(f"✅ Added: {', '.join(added)}\n🛒 Your cart has {len(state['cart'])} item(s).\n\n🧾 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}")
 
-            # Send cart template after cart summary
+            # Separate response for template after message body
+            resp2 = MessagingResponse()
             try:
                 twilio_client.messages.create(
                     from_=WHATSAPP_FROM,
