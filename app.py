@@ -1,6 +1,5 @@
 import os
 from flask import Flask, request
-from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
 
 app = Flask(__name__)
@@ -20,54 +19,21 @@ def whatsapp():
     incoming_msg = request.values.get("Body", "").strip().lower()
     from_number = request.values.get("From")
 
-    resp = MessagingResponse()
-    msg = resp.message()
+    if incoming_msg in ["hi", "hello", "hey"] or user_states.get(from_number, {}).get("step") == "start":
+        # Send interactive greeting using approved template
+        try:
+            twilio_client.messages.create(
+                from_=WHATSAPP_FROM,
+                to=from_number,
+                content_sid="HXb044cc05b74e2472d4c5838d94c8c6c4"  # Replace with actual template content SID
+            )
+            user_states[from_number] = {"step": "awaiting_intent"}
+            return "Greeting template sent."
+        except Exception as e:
+            print("❌ Failed to send template:", e)
+            return "Error sending template.", 500
 
-    state = user_states.get(from_number, {"step": "start"})
-
-    # STEP 1: Greeting & Introduction
-    if incoming_msg in ["hi", "hello", "hey"] or state["step"] == "start":
-        greeting = (
-            "👋 Welcome to *Fruit Custard*! 🍓\n\n"
-            "We are your one-stop destination for delicious *Fruit Custard*, *Juices*, *Oatmeals*, *Fruit Bowls*, *Delights* & more!\n\n"
-            "Please choose why you're here today:"
-        )
-        msg.body(greeting)
-        msg.media("https://i.imgur.com/FruitCustardSample.jpg")
-
-        msg.message().interactive(
-            type="button",
-            body={"text": "Choose an option:"},
-            action={
-                "buttons": [
-                    {"type": "reply", "reply": {"id": "order_food", "title": "🛵 Order Food"}},
-                    {"type": "reply", "reply": {"id": "bulk_order", "title": "📦 Bulk Order"}},
-                    {"type": "reply", "reply": {"id": "other_query", "title": "❓ Other Query"}}
-                ]
-            }
-        )
-        user_states[from_number] = {"step": "awaiting_intent"}
-        return str(resp)
-
-    # STEP 2: Handle button reply for intent
-    elif state["step"] == "awaiting_intent":
-        if incoming_msg in ["1", "order_food"]:
-            msg.body("📍 Please share your location or area name. We deliver only within a 2 km radius from our nearest branch.")
-            user_states[from_number] = {"step": "awaiting_location"}
-        elif incoming_msg in ["2", "bulk_order"]:
-            msg.body("📦 Please tell us more about your bulk order – quantity, occasion, and delivery date. Our team will get in touch soon!")
-            user_states[from_number] = {"step": "bulk_query"}
-        elif incoming_msg in ["3", "other_query"]:
-            msg.body("🤔 Please type your question and we’ll respond as soon as possible!")
-            user_states[from_number] = {"step": "other_query"}
-        else:
-            msg.body("❌ Please choose a valid option from the buttons above.")
-        return str(resp)
-
-    # Fallback
-    else:
-        msg.body("🤖 Type 'hi' to begin your order journey with Fruit Custard!")
-        return str(resp)
+    return "Awaiting user message..."
 
 # --------------------- RUN APP -----------------------
 if __name__ == "__main__":
