@@ -45,7 +45,7 @@ def connect_to_sheet():
 
 # Menu Items
 menu_items = {
-    "1": "M Brownie (1 piece) - ₹150",
+    "1": "Ma Brownie (1 piece) - ₹150",
     "2": "Itlu Bobbatlu (2 pieces) - ₹120",
     "3": "Gulab Jamun Cheesecake (Slice) - ₹180",
     "4": "Classic Custard (250ml Bowl) - ₹90"
