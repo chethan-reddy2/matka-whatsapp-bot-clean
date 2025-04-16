@@ -25,7 +25,7 @@ KITCHEN_LOCATION = (17.453049, 78.395519)
 # Google Sheets Setup
 def connect_to_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json.json", scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope)
     client = gspread.authorize(creds)
     return client.open("Matka Orders").worksheet("Matka Orders")
 
