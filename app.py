@@ -100,15 +100,15 @@ def whatsapp():
                         "branch": branch_name,
                         "location": user_coords
                     }
+                    msg.body(f"✅ You're within delivery range of our *{branch_name}* branch!\n🍴 Tap below to view our bestsellers and place your order.")
                     try:
                         twilio_client.messages.create(
                             from_=WHATSAPP_FROM,
                             to=from_number,
-                            content_sid="HXe5ce9a647ed912eb5c398e2ccd15fac3"  # fruitcustard_ordering
+                            content_sid="HX3350e7c4b8fdd9cce155b0c614fe6b7e"  # fruitcustard_bestsellers
                         )
                     except Exception as e:
-                        print("Order options template error:", e)
-                        msg.body(f"You're within delivery range of our {branch_name} branch!\nReply with 'Best Sellers', 'Menu', or 'Main Menu'")
+                        print("Catalog template error:", e)
                     return str(resp)
 
             save_unserviceable_user(from_number)
