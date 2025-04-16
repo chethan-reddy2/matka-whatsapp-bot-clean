@@ -137,7 +137,7 @@ def whatsapp():
                     added.append(item_name)
             user_states[from_number] = state
 
-            # Send template first
+            # Send template only
             try:
                 twilio_client.messages.create(
                     from_=WHATSAPP_FROM,
@@ -147,15 +147,6 @@ def whatsapp():
             except Exception as e:
                 print("Template send error:", e)
 
-            # Then send cart summary
-            total = sum(int(x.split('₹')[-1]) for x in state["cart"])
-            items_text = "\n".join([f"- {item}" for item in state["cart"]])
-            msg.body(
-                f"✅ Added: {', '.join(added)}\n"
-                f"🛒 Your cart has {len(state['cart'])} item(s).\n\n"
-                f"🧾 *Your Cart:*\n{items_text}\n\n"
-                f"💰 Total: ₹{total}"
-            )
             return str(resp)
 
         elif incoming_msg == "1":
