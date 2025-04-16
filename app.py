@@ -7,7 +7,7 @@ from geopy.distance import geodesic
 import datetime
 from twilio.rest import Client
 
-app = Flask(_name_)
+app = Flask(__name__)
 
 # --------------------- TWILIO CONFIG -----------------------
 TWILIO_SID = 'AC96d4eedb5a670c040181473cc2710d52'
@@ -256,5 +256,5 @@ def download_orders():
         return f"Error downloading file: {e}", 500
 
 # --------------------- RUN -----------------------
-if _name_ == "_main_":
+if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
