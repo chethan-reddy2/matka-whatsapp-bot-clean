@@ -30,25 +30,34 @@ def whatsapp():
         greeting = (
             "👋 Welcome to *Fruit Custard*! 🍓\n\n"
             "We are your one-stop destination for delicious *Fruit Custard*, *Juices*, *Oatmeals*, *Fruit Bowls*, *Delights* & more!\n\n"
-            "What brings you here today? Please choose below:"
+            "Please choose why you're here today:"
         )
         msg.body(greeting)
         msg.media("https://i.imgur.com/FruitCustardSample.jpg")
-        msg.add_button("🛵 Order Food (Delivery/Takeaway)", "order_food")
-        msg.add_button("📦 Bulk Order Enquiry", "bulk_order")
-        msg.add_button("❓ Other Query", "other_query")
+
+        msg.message().interactive(
+            type="button",
+            body={"text": "Choose an option:"},
+            action={
+                "buttons": [
+                    {"type": "reply", "reply": {"id": "order_food", "title": "🛵 Order Food"}},
+                    {"type": "reply", "reply": {"id": "bulk_order", "title": "📦 Bulk Order"}},
+                    {"type": "reply", "reply": {"id": "other_query", "title": "❓ Other Query"}}
+                ]
+            }
+        )
         user_states[from_number] = {"step": "awaiting_intent"}
         return str(resp)
 
     # STEP 2: Handle button reply for intent
     elif state["step"] == "awaiting_intent":
-        if incoming_msg == "order_food":
+        if incoming_msg in ["1", "order_food"]:
             msg.body("📍 Please share your location or area name. We deliver only within a 2 km radius from our nearest branch.")
             user_states[from_number] = {"step": "awaiting_location"}
-        elif incoming_msg == "bulk_order":
+        elif incoming_msg in ["2", "bulk_order"]:
             msg.body("📦 Please tell us more about your bulk order – quantity, occasion, and delivery date. Our team will get in touch soon!")
             user_states[from_number] = {"step": "bulk_query"}
-        elif incoming_msg == "other_query":
+        elif incoming_msg in ["3", "other_query"]:
             msg.body("🤔 Please type your question and we’ll respond as soon as possible!")
             user_states[from_number] = {"step": "other_query"}
         else:
