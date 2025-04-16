@@ -29,34 +29,7 @@ def connect_to_sheet():
       "type": "service_account",
       "project_id": "bubbly-subject-438713-a8",
       "private_key_id": "e2dc343b2514515f567677e204ec6e0a7e8d1730",
-      "private_key": """-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDhfLi7jVhcskqH
-jsRc88Iy70k+EJ8gyEsBaJTq9PX81hZNwNRkLBeVVKbnXidGgErOgecTBqNiN81e
-YV456anvZ9OyEzuQi8gFrbPckeP0y40tT1iYKRH1CPsjzFxBK9GRbDwiVMLXoeNm
-8mKr5S0woyXbdhc540EOGDvjClRBopE410hzwYpHVJrygbbJ9yzpdQwHaY2wNn1a
-lMx9uK9d/PCq/9ZXHFxMjvWnYaiEiKErh3cYBjS5czCig2CzRufhZz6Ktdm790ME
-jwzzMM5JPu970VbePcwhiSsxv5EVyTKqDSXoT9n6PA7CmIIB8XGelOiPkw0l19Jr
-FmH6AAt/AgMBAAECggEAAi0aeVDpZ+eemYVSttTxbF1r1woBByd3tdlFCql3kEue
-pnx0cE0OozXQcI4zkdYeIrUVPlVDkWiZdk45QxTSu4lEfUT7P69hrFBbWocb7Jpk
-T+oioEFRN4yxI8zOnSBnouApCmnIAZ3B3JX9Rsxs7bm9XUtb+QaM865fMZdBbeq3
-mCTKlUqwIJ/fRZ4KC3yOB2uZp3sM+S7XQk+wy49gERDAJATlN3zuCXwEmzavrhYX
-Y0AcVSsCytIG5AcWe93Muu5F4Q0w8Ln3A299JGKVUlfGL65vCYjyIZcKMezDZa//
-v4Q6XC0EMmJIjbjngxdfZfsNQNfCfms8TfOqQSfejQKBgQD9inkMeoxOSLD3uOK5
-o09MQmM8RBInNQnDNTRovPYAFkH3F6QBn6390xibz83CkUjD4i+ddloZBV5mnfQm
-ev/zAxsZ85HeaAkmHR64rwILBVQGSBcSMtXEQN/AFjT6lt0I4hABKQBw3yNA+J6p
-OQc/VchQkpm+4s58+wgJhzLt3QKBgQDjrJfRfg5pZtxX8nZy67muEd6U1xdEY168
-g0wcAxHCu1vG36Nf/s8XrdqwxKOGHj6pI4AWoouK36oNykj/9JH/TGLisDTIKUSh
-f2s9C21qDKGkAkzmLLqH9tp6tFlH/t0C62nd9MlKLu/zObO7PYcJ3pMGhpTLDYR8
-0wct0hFvCwKBgG01aSCT5L2PmBKMI7S8gFqjueTqmTskIFliIHoA8qFk9PL+ztkY
-M7TCabYrk0B8nfAqDEJyCSr/4gKnhNPSZU8ChnjuLmWzQEWXg3UfhOzEVcYC5VUk
-ammHXBl8N0O9GeZKoYQuag80PhYtQQI5G0MPqyHxk6HiRfkVlAeuoaRNAoGBANBD
-24TpWOmWDE3vH+c0NuBCvGdO8pu+grTTLlYZgK+vj962SM7RWkOA56H33tYa6Jr0
-PIF4I0ngG8ENoAVzhfIRwAs5wK6xAXTyB/kJcQcnkt1itVGA7QjfCTBhtaIkQ6we
-CPPerhtMIHdP+1d2iwa+MaQwi//K170PlWuW1BfNAoGBAKjXhHgYRlvi5vct9MKl
-mnjHZIopuFJH5RRb4y2PZOyfqjDYR/kOOQ3yRFgYft1Elp65CMdN6Ra0ok139wFm
-Gobl21GmIKvlUY6MDaX57M70SG+O2AZtOKmyZuni+JFanvSEOAi8DYvk3lr2WvPT
-wsefLhEV+vXUzuHR479tf+ju
------END PRIVATE KEY-----""",
+      "private_key": """-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDhfLi7jVhcskqH\njsRc88Iy70k+EJ8gyEsBaJTq9PX81hZNwNRkLBeVVKbnXidGgErOgecTBqNiN81e\n...truncated...\n-----END PRIVATE KEY-----""",
       "client_email": "matka-foods-orders@bubbly-subject-438713-a8.iam.gserviceaccount.com",
       "client_id": "102405415436373978451",
       "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -139,14 +112,10 @@ def whatsapp():
         item = state["item"]
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        try:
-            sheet = connect_to_sheet()
-            sheet.append_row([from_number, item, address, timestamp])
-        except Exception as e:
-            print("❌ Sheet logging failed:", e)
-            msg.body("⚠️ Could not log your order to Google Sheets. Please try again.")
-            return str(resp)
+        # ✅ Step 1: Send confirmation to user
+        msg.body(f"✅ Order confirmed for *{item}*.\n📍 Delivery to: {address}\nThank you for ordering with Matka Foods! 🙏")
 
+        # ✅ Step 2: Send to kitchen
         try:
             order_msg = (
                 f"📢 *New Order Received!*\n"
@@ -163,7 +132,19 @@ def whatsapp():
         except Exception as e:
             print("❌ Kitchen alert failed:", e)
 
-        msg.body(f"✅ Order confirmed for *{item}*.\n📍 Delivery to: {address}\nThank you for ordering with Matka Foods! 🙏")
+        # ✅ Step 3: Try logging to Google Sheets
+        try:
+            sheet = connect_to_sheet()
+            sheet.append_row([from_number, item, address, timestamp])
+        except Exception as e:
+            print("❌ Sheet logging failed:", e)
+            # optionally notify kitchen
+            twilio_client.messages.create(
+                body=f"⚠️ Failed to log order to Google Sheets:\n{e}",
+                from_=WHATSAPP_FROM,
+                to=KITCHEN_WHATSAPP
+            )
+
         user_states[from_number] = {"step": "start"}
         return str(resp)
 
