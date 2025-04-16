@@ -99,15 +99,7 @@ def whatsapp():
                         "branch": branch_name,
                         "location": user_coords
                     }
-                    msg.body(f"✅ You're within delivery range of our *{branch_name}* branch!\n🍴 Tap below to choose how you'd like to proceed.")
-                    try:
-                        twilio_client.messages.create(
-                            from_=WHATSAPP_FROM,
-                            to=from_number,
-                            content_sid="HXe5ce9a647ed912eb5c398e2ccd15fac3"  # 3-button menu template
-                        )
-                    except Exception as e:
-                        print("Menu template error:", e)
+                    msg.body(f"✅ You're within delivery range of our *{branch_name}* branch!\n🍴 What would you like to explore?\n\n1. Best Sellers\n2. Full Menu\n3. Return to Main Menu\n\nReply with the number (1/2/3).")
                     return str(resp)
 
             save_unserviceable_user(from_number)
@@ -120,21 +112,28 @@ def whatsapp():
         return str(resp)
 
     elif state["step"] == "awaiting_menu_selection":
-        if "menu" in incoming_msg:
-            try:
-                twilio_client.messages.create(
-                    from_=WHATSAPP_FROM,
-                    to=from_number,
-                    content_sid="HX3350e7c4b8fdd9cce155b0c614fe6b7e"  # catalog template
-                )
-            except Exception as e:
-                print("Catalog template error:", e)
-                msg.body("⚠️ Couldn't load the catalog. Please try again later.")
-        elif "main menu" in incoming_msg:
+        if incoming_msg == "1":
+            msg.body("🔥 *Best Sellers* 🔥\n\n• Fruit Custard (220g) – ₹120\n• Nutty Custard Ice Cream (220g) – ₹100\n• Apricot Delight (220g) – ₹170\n\nReply with item number to add to cart or type 'menu' to view full options.")
+        elif incoming_msg == "2":
+            menu_text = (
+                "🍧 *Fruit Custard Menu* 🍧\n\n"
+                "🥣 *Oatmeals*:\n"
+                "1. Fruit Pop Mini (220g) - ₹140\n"
+                "2. Choco Banana Oatmeal (320g) - ₹180\n\n"
+                "🍨 *Custard Delicacies*:\n"
+                "3. Classic Custard Bowl (250ml) - ₹90\n"
+                "4. Nutty Custard Ice Cream (220g) - ₹100\n"
+                "5. Apricot Delight (220g) - ₹170\n\n"
+                "🧃 *Juices*:\n"
+                "6. Watermelon Juice (300ml) - ₹129\n\n"
+                "👉 Reply with item numbers separated by commas to add to cart."
+            )
+            msg.body(menu_text)
+        elif incoming_msg == "3":
             msg.body("🔁 Back to main menu. Type 'hi' to restart.")
             user_states[from_number] = {"step": "start"}
         else:
-            msg.body("🤖 Please tap a valid option from the previous message or type 'hi'.")
+            msg.body("🤖 Invalid selection. Reply with 1, 2, or 3.")
         return str(resp)
 
     else:
