@@ -139,30 +139,35 @@ def whatsapp():
 
             total = sum(int(x.split('₹')[-1]) for x in state["cart"])
             items_text = "\n".join([f"- {item}" for item in state["cart"]])
-            msg.body(f"✅ Added: {', '.join(added)}\n🛒 Your cart has {len(state['cart'])} item(s).\n\n🧾 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}")
-
-            try:
-                twilio_client.messages.create(
-                    from_=WHATSAPP_FROM,
-                    to=from_number,
-                    content_sid="HX488e35d627419c837ed10a025ccf411d"
-                )
-            except Exception as e:
-                print("Cart template error:", e)
-
+            msg.body(
+                f"✅ Added: {', '.join(added)}\n"
+                f"🛒 Your cart has {len(state['cart'])} item(s).\n\n"
+                f"🧾 *Your Cart:*\n{items_text}\n\n"
+                f"💰 Total: ₹{total}\n\n"
+                "Please reply with:\n"
+                "1️⃣ View Cart\n"
+                "2️⃣ Menu\n"
+                "3️⃣ Main Menu\n"
+                "4️⃣ Checkout"
+            )
             return str(resp)
 
-        elif incoming_msg == "cart":
+        elif incoming_msg == "1":
             total = sum(int(x.split('₹')[-1]) for x in state["cart"])
             items_text = "\n".join([f"- {item}" for item in state["cart"]])
             msg.body(f"🛒 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}")
             return str(resp)
 
-        elif incoming_msg == "main menu":
+        elif incoming_msg == "2":
+            menu_text = "\n".join([f"{k}. {v[0]} – ₹{v[1]}" for k, v in menu_items.items()])
+            msg.body(f"📋 *Menu:*\n{menu_text}\n\nType item numbers to add more to cart.")
+            return str(resp)
+
+        elif incoming_msg == "3":
             state["step"] = "start"
             return whatsapp()
 
-        elif incoming_msg == "checkout":
+        elif incoming_msg == "4":
             msg.body("🚚 Delivery or 🛍️ Pickup? Reply with 'delivery' or 'pickup'.")
             state["step"] = "awaiting_delivery_option"
             user_states[from_number] = state
