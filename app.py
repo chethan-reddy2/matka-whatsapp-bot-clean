@@ -33,6 +33,8 @@ BRANCH_LINKS = {
     "Manikonda": "https://maps.app.goo.gl/fhn1JfopRp27JxFv6"
 }
 
+KITCHEN_NUMBERS = ["+918885112242", "+917671011599"]
+
 user_states = {}
 orders = {}
 
@@ -74,26 +76,28 @@ def whatsapp():
         twilio_client.messages.create(
             from_=WHATSAPP_FROM,
             to=from_number,
-            content_sid="HXe1b289e2a199611ad5b7c864f97a024c"  # greeting template with buttons
+            content_sid="HXe1b289e2a199611ad5b7c864f97a024c"  # greeting template
         )
         user_states[from_number] = {"step": "greeted"}
         return ("", 200)
 
-    # Step 2: Menu Options
+    # Step 2: Main Menu Options
     elif state["step"] == "greeted":
         if incoming_msg in ["1", "order food"]:
             msg.body("📍 Please share your live location or type your area name to check delivery availability.")
             user_states[from_number] = {"step": "awaiting_location"}
             return str(resp)
+
         elif incoming_msg in ["2", "bulk order", "3", "other query"]:
             msg.body("📲 For bulk orders or queries, message us directly: https://wa.me/918688641919")
             user_states[from_number] = {"step": "start"}
             return str(resp)
+
         else:
-            msg.body("❓ Please reply with:\n🟢 Order Food\n📦 Bulk Order\n❓ Other Query")
+            msg.body("❓ Please reply with:\n1️⃣ Order Food\n2️⃣ Bulk Order\n3️⃣ Other Query")
             return str(resp)
 
-    # Step 3: Handle location input
+    # Step 3: Handle Location
     elif state["step"] == "awaiting_location":
         try:
             if latitude and longitude:
@@ -109,13 +113,13 @@ def whatsapp():
             for branch, coords in BRANCHES.items():
                 if geodesic(user_coords, coords).km <= 2:
                     save_location_info(from_number, user_coords[0], user_coords[1], branch)
-                    msg.body(f"🎉 Hurray! We can deliver to you from our {branch} branch. Here's our menu 👇")
+                    msg.body(f"🎉 We can deliver to you from our {branch} branch. Here's our menu 👇")
                     twilio_client.messages.create(
                         from_=WHATSAPP_FROM,
                         to=from_number,
-                        content_sid="HX79124164c9b84e23a12f0765425f7e86"  # fruitcustard_cat_menu
+                        content_sid="HX79124164c9b84e23a12f0765425f7e86"
                     )
-                    msg.body("🛍️ After selecting items from the catalog, type *order* to proceed.")
+                    msg.body("🛍️ After selecting items, type *order* to proceed.")
                     user_states[from_number] = {"step": "catalogue_shown"}
                     return str(resp)
 
@@ -126,27 +130,31 @@ def whatsapp():
 
         except Exception as e:
             print("Location error:", e)
-            msg.body("⚠️ Couldn't detect your location. Please try again with area name or pin code.")
+            msg.body("⚠️ Couldn't detect your location. Try again with area name or pin.")
             return str(resp)
 
-    # Step 4: Detect "order" typed manually after using catalog
+    # Step 4: Detect 'order' input and offer Delivery/Takeaway
     elif state["step"] == "catalogue_shown" and incoming_msg in ["order", "place order"]:
-        twilio_client.messages.create(
-            from_=WHATSAPP_FROM,
-            to=from_number,
-            content_sid="HX6a4548eddff22056b5f4727db8ce5dcd"  # delivery or takeaway buttons
-        )
+        msg.body("✅ Great! Please choose one:\n1️⃣ Delivery\n2️⃣ Takeaway")
         user_states[from_number] = {"step": "order_type_selection"}
-        return ("", 200)
 
-    # Step 5: Delivery or Takeaway
+        # Notify both kitchens
+        for kitchen in KITCHEN_NUMBERS:
+            twilio_client.messages.create(
+                from_=WHATSAPP_FROM,
+                to=f"whatsapp:{kitchen}",
+                body=f"🛎️ Customer {from_number} typed *order*. Awaiting Delivery/Takeaway selection."
+            )
+        return str(resp)
+
+    # Step 5: Handle Delivery or Takeaway
     elif state["step"] == "order_type_selection":
-        if incoming_msg == "delivery":
-            msg.body("🏠 Please enter your full delivery address including area, street, and any landmark:")
+        if incoming_msg in ["1", "delivery"]:
+            msg.body("🏠 Please enter your full delivery address (area, street, landmark):")
             user_states[from_number] = {"step": "awaiting_address", "type": "Delivery"}
             return str(resp)
 
-        elif incoming_msg == "takeaway":
+        elif incoming_msg in ["2", "takeaway"]:
             try:
                 with open("user_locations.csv", encoding="utf-8") as f:
                     rows = list(csv.reader(f))
@@ -155,17 +163,23 @@ def whatsapp():
                 branch = "Kondapur"
 
             order_id = save_order(from_number, branch, "Takeaway")
-            msg.body(f"🕒 Please pick up your order in 15 minutes from our {branch} branch.\n📍 Location: {BRANCH_LINKS[branch]}\n\n🧾 Your Order ID: {order_id}")
+            msg.body(f"🕒 Please pick up your order in 15 minutes from our {branch} branch.\n📍 {BRANCH_LINKS[branch]}\n\n🧾 Order ID: {order_id}")
 
-            twilio_client.messages.create(
-                from_=WHATSAPP_FROM,
-                to="whatsapp:+918885112242",
-                body=f"🧾 New Takeaway Order\nBranch: {branch}\nOrder ID: {order_id}\nCustomer: {from_number}"
-            )
+            for kitchen in KITCHEN_NUMBERS:
+                twilio_client.messages.create(
+                    from_=WHATSAPP_FROM,
+                    to=f"whatsapp:{kitchen}",
+                    body=f"🧾 New Takeaway Order\nBranch: {branch}\nOrder ID: {order_id}\nCustomer: {from_number}"
+                )
+
             user_states[from_number] = {"step": "start"}
             return str(resp)
 
-    # Step 6: Get Delivery Address
+        else:
+            msg.body("❓ Please reply with 1️⃣ for Delivery or 2️⃣ for Takeaway.")
+            return str(resp)
+
+    # Step 6: Handle Delivery Address
     elif state["step"] == "awaiting_address":
         try:
             with open("user_locations.csv", encoding="utf-8") as f:
@@ -177,18 +191,19 @@ def whatsapp():
         address = incoming_msg.strip()
         order_id = save_order(from_number, branch, "Delivery", address)
 
-        msg.body(f"✅ Your order has been placed for delivery.\n📦 It will be delivered soon to:\n{address}\n\n🧾 Order ID: {order_id}")
+        msg.body(f"✅ Your order has been placed for delivery.\n📦 Will be delivered to:\n{address}\n\n🧾 Order ID: {order_id}")
 
-        twilio_client.messages.create(
-            from_=WHATSAPP_FROM,
-            to="whatsapp:+918885112242",
-            body=f"🧾 New Delivery Order\nBranch: {branch}\nOrder ID: {order_id}\nAddress: {address}\nCustomer: {from_number}"
-        )
+        for kitchen in KITCHEN_NUMBERS:
+            twilio_client.messages.create(
+                from_=WHATSAPP_FROM,
+                to=f"whatsapp:{kitchen}",
+                body=f"🧾 New Delivery Order\nBranch: {branch}\nOrder ID: {order_id}\nAddress: {address}\nCustomer: {from_number}"
+            )
 
         user_states[from_number] = {"step": "start"}
         return str(resp)
 
-    # Default fallback
+    # Fallback
     msg.body("🤖 Please type 'hi' to start your order.")
     return str(resp)
 
