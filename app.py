@@ -9,14 +9,14 @@ from twilio.rest import Client
 
 app = Flask(__name__)
 
-# --------------------- TWILIO CONFIG -----------------------
+# Twilio Configuration
 TWILIO_SID = 'AC96d4eedb5a670c040181473cc2710d52'
 TWILIO_AUTH = '7b4b18aab19134c83f1db7f22b43a39e'
 WHATSAPP_FROM = 'whatsapp:+14134145410'
 KITCHEN_WHATSAPP = 'whatsapp:+917671011599'
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
-# --------------------- GOOGLE MAPS -----------------------
+# Google Maps Configuration
 gmaps = googlemaps.Client(key="AIzaSyCuUz9N78WZAT1N38ffIDkbySI3_0zkZgE")
 BRANCHES = {
     "Kondapur": (17.47019976442252, 78.35272372527311),
@@ -24,34 +24,20 @@ BRANCHES = {
     "Manikonda": (17.403904212354316, 78.39079508109451)
 }
 
-# --------------------- CSV LOGGER -----------------------
-def save_order_to_csv(phone, items, address, timestamp):
-    try:
-        with open("orders.csv", mode="a", newline="", encoding="utf-8") as file:
-            writer = csv.writer(file)
-            writer.writerow([phone, "; ".join(items), address, timestamp])
-    except Exception as e:
-        print("CSV logging error:", e)
-
+# Save CSV
 def save_unserviceable_user(phone):
-    with open("unserviceable_users.csv", mode="a", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
+    with open("unserviceable_users.csv", "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
         writer.writerow([phone, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+
+# Save location info for navigation
+def save_location_info(phone, lat, lon, branch):
+    with open("user_locations.csv", "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([phone, lat, lon, branch, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
 user_states = {}
 
-# --------------------- MENU ITEMS -----------------------
-menu_items = {
-    "1": ("Fruit Custard (220g)", 120),
-    "2": ("Nutty Custard Ice Cream (220g)", 100),
-    "3": ("Apricot Delight (220g)", 170),
-    "4": ("Fruit Pop Mini Oatmeal (220g)", 140),
-    "5": ("Choco Banana Oatmeal (320g)", 180),
-    "6": ("Classic Custard Bowl (250ml)", 90),
-    "7": ("Watermelon Juice (300ml)", 129)
-}
-
-# --------------------- WHATSAPP ROUTE -----------------------
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
     incoming_msg = request.values.get("Body", "").strip().lower()
@@ -61,31 +47,22 @@ def whatsapp():
 
     resp = MessagingResponse()
     msg = resp.message()
-    state = user_states.get(from_number, {"step": "start", "cart": []})
+
+    state = user_states.get(from_number, {"step": "start"})
 
     if incoming_msg in ["hi", "hello"] or state["step"] == "start":
-        try:
-            twilio_client.messages.create(
-                from_=WHATSAPP_FROM,
-                to=from_number,
-                content_sid="HXb044cc05b74e2472d4c5838d94c8c6c4"
-            )
-        except:
-            msg.body("👋 Welcome to Fruit Custard! Please share your live location or area name so we can check if we deliver to you.")
-        user_states[from_number] = {"step": "awaiting_post_greeting", "cart": []}
-        return str(resp)
+        msg.body("👋 Welcome to Fruit Custard!\n\nWe offer:\n🍧 Fruit Custards\n🥣 Oatmeals\n🍹 Juices\n🍓 Fruit Bowls\n🍮 Delights & more!\n\nWhy are you here today?\n1️⃣ Order Food\n2️⃣ Bulk Order\n3️⃣ Other Query")
+        state = {"step": "greeting"}
 
-    elif state["step"] == "awaiting_post_greeting":
-        if "order food" in incoming_msg:
-            msg.body("📍 Please share your live location or type your area name.")
+    elif state["step"] == "greeting":
+        if "1" in incoming_msg:
+            msg.body("📍 Please share your live location or area name to check delivery availability.")
             state["step"] = "awaiting_location"
-        elif "bulk order" in incoming_msg or "other query" in incoming_msg:
-            msg.body("📲 For bulk orders or other queries, please contact us at https://wa.me/+918688641919")
-            state["step"] = "start"
+        elif "2" in incoming_msg or "3" in incoming_msg:
+            msg.body("📲 For bulk orders or queries, message us on WhatsApp: https://wa.me/918688641919")
+            state = {"step": "start"}
         else:
-            msg.body("🤖 Please choose an option or type 'hi' to restart.")
-        user_states[from_number] = state
-        return str(resp)
+            msg.body("❓ Please select a valid option: 1️⃣ Order Food, 2️⃣ Bulk Order, 3️⃣ Other Query")
 
     elif state["step"] == "awaiting_location":
         try:
@@ -93,144 +70,32 @@ def whatsapp():
                 user_coords = (float(latitude), float(longitude))
             else:
                 loc_data = gmaps.geocode(incoming_msg)
-                if not loc_data:
-                    raise Exception("No location found")
                 loc = loc_data[0]["geometry"]["location"]
                 user_coords = (loc["lat"], loc["lng"])
 
-            for branch_name, branch_coords in BRANCHES.items():
-                distance = geodesic(user_coords, branch_coords).km
-                if distance <= 2:
-                    state["step"] = "awaiting_menu_selection"
-                    state["branch"] = branch_name
-                    msg.body(f"✅ You're within delivery range of our *{branch_name}* branch!")
-                    twilio_client.messages.create(
-                        from_=WHATSAPP_FROM,
-                        to=from_number,
-                        content_sid="HXe5ce9a647ed912eb5c398e2ccd15fac3"
-                    )
-                    user_states[from_number] = state
-                    return str(resp)
-
-            save_unserviceable_user(from_number)
-            msg.body("❌ Sorry, we don’t deliver to your area yet. We'll notify you once we expand! 🗺️")
-            user_states[from_number] = {"step": "start", "cart": []}
-            return str(resp)
-        except Exception as e:
-            print("Location error:", e)
-            msg.body("⚠️ Couldn't detect your location. Try again or type your area name.")
-        return str(resp)
-
-    elif state["step"] == "awaiting_menu_selection":
-        if incoming_msg == "menu" or incoming_msg == "2":
-            menu_text = "\n".join([f"{k}. {v[0]} – ₹{v[1]}" for k, v in menu_items.items()])
-            msg.body(f"📋 *Full Menu:*\n{menu_text}\n\nType item numbers separated by commas to add to cart.")
-        elif incoming_msg == "1":
-            total = sum(int(x.split('₹')[-1]) for x in state["cart"])
-            items_text = "\n".join([f"- {item}" for item in state["cart"]])
-            msg.body(
-                f"🛒 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}\n\n1️⃣ View Cart\n2️⃣ Menu\n3️⃣ Main Menu\n4️⃣ Checkout\n5️⃣ Clear Cart\n6️⃣ Delete Item"
-            )
-        elif incoming_msg == "3":
-            state["step"] = "start"
-            user_states[from_number] = state
-            return whatsapp()
-        elif incoming_msg == "4":
-            msg.body("🛍️ 1️⃣ Pickup\n🚚 2️⃣ Delivery\n\n3️⃣ Main Menu\n4️⃣ Menu\n5️⃣ View Cart")
-            state["step"] = "awaiting_delivery_option"
-        elif incoming_msg == "5":
-            state["cart"] = []
-            state["step"] = "start"
-            user_states[from_number] = state
-            return whatsapp()
-        elif incoming_msg == "6":
-            if not state["cart"]:
-                msg.body("🧹 Your cart is empty.")
+            for branch, coords in BRANCHES.items():
+                if geodesic(user_coords, coords).km <= 2:
+                    save_location_info(from_number, user_coords[0], user_coords[1], branch)
+                    msg.body(f"✅ You're within delivery range of our *{branch}* branch!\n\nTap below to view our menu and order.")
+                    msg.media("https://api.twilio.com/2010-04-01/Accounts/{TWILIO_SID}/Messages/Media/HX79124164c9b84e23a12f0765425f7e86")  # Catalog template placeholder
+                    state = {"step": "menu_displayed"}
+                    break
             else:
-                item_list = "\n".join([f"{idx+1}. {item}" for idx, item in enumerate(state["cart"])])
-                msg.body(f"🧾 Select item number to delete:\n{item_list}")
-                state["step"] = "awaiting_item_deletion"
-        elif any(x.strip() in menu_items for x in incoming_msg.split(",")):
-            added = []
-            for item_num in incoming_msg.split(","):
-                item_num = item_num.strip()
-                if item_num in menu_items:
-                    item_name, price = menu_items[item_num]
-                    state["cart"].append(f"{item_name} – ₹{price}")
-                    added.append(item_name)
-            total = sum(int(x.split('₹')[-1]) for x in state["cart"])
-            items_text = "\n".join([f"- {item}" for item in state["cart"]])
-            msg.body(
-                f"✅ Added: {', '.join(added)}\n🛒 Your cart has {len(state['cart'])} item(s).\n\n🧾 *Your Cart:*\n{items_text}\n\n💰 Total: ₹{total}\n\n1️⃣ View Cart\n2️⃣ Menu\n3️⃣ Main Menu\n4️⃣ Checkout\n5️⃣ Clear Cart\n6️⃣ Delete Item"
-            )
-        else:
-            msg.body("🤖 Invalid input. Choose from the available options.")
-        user_states[from_number] = state
-        return str(resp)
-
-    elif state["step"] == "awaiting_item_deletion":
-        try:
-            idx = int(incoming_msg.strip()) - 1
-            if 0 <= idx < len(state["cart"]):
-                removed = state["cart"].pop(idx)
-                msg.body(f"🗑️ Removed: {removed}")
-            else:
-                msg.body("❌ Invalid number.")
+                save_unserviceable_user(from_number)
+                msg.body("❌ Sorry, we don't deliver to your area yet. We'll notify you when we do!")
+                state = {"step": "start"}
         except:
-            msg.body("⚠️ Please enter a valid item number.")
-        state["step"] = "awaiting_menu_selection"
-        user_states[from_number] = state
-        return whatsapp()
+            msg.body("⚠️ Couldn't detect your location. Please try again with area name or share live location.")
 
-    elif state["step"] == "awaiting_delivery_option":
-        if incoming_msg == "1":
-            msg.body("✅ Pickup confirmed. Please visit your selected branch in 15 minutes. Thank you!")
-            state = {"step": "start", "cart": []}
-        elif incoming_msg == "2":
-            msg.body("📍 Please share your full delivery address.")
-            state["step"] = "awaiting_address"
-        elif incoming_msg == "3":
-            return whatsapp()
-        elif incoming_msg == "4":
-            state["step"] = "awaiting_menu_selection"
-        elif incoming_msg == "5":
-            return whatsapp()
-        else:
-            msg.body("Please reply with 1 for Pickup or 2 for Delivery.")
-        user_states[from_number] = state
-        return str(resp)
+    user_states[from_number] = state
+    return str(resp)
 
-    elif state["step"] == "awaiting_address":
-        address = incoming_msg
-        item_list = state["cart"]
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        msg.body(f"✅ Order confirmed:\n{chr(10).join(item_list)}\n📍 Address: {address}\n🕒 ETA: 20–25 mins")
-        try:
-            twilio_client.messages.create(
-                body=f"📢 Order Received:\n{', '.join(item_list)}\n📞 {from_number}\n📍 {address}\n🕒 {timestamp}",
-                from_=WHATSAPP_FROM,
-                to=KITCHEN_WHATSAPP
-            )
-        except Exception as e:
-            print("Twilio error:", e)
-
-        save_order_to_csv(from_number, item_list, address, timestamp)
-        user_states[from_number] = {"step": "start", "cart": []}
-        return whatsapp()
-
-    else:
-        msg.body("🤖 Type 'hi' to start.")
-        return str(resp)
-
-# --------------------- CSV DOWNLOAD ROUTE -----------------------
 @app.route("/download-orders", methods=["GET"])
 def download_orders():
     try:
-        return send_file("orders.csv", as_attachment=True)
+        return send_file("user_locations.csv", as_attachment=True)
     except Exception as e:
         return f"Error downloading file: {e}", 500
 
-# --------------------- RUN -----------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
