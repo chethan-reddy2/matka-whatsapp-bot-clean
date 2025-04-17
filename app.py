@@ -31,6 +31,11 @@ BRANCH_LINKS = {
     "Madhapur": "https://maps.app.goo.gl/x5AHBgoh3gMbhUobA",
     "Manikonda": "https://maps.app.goo.gl/FkCU71kfvKY2vrgw9"
 }
+BRANCH_CONTACTS = {
+    "Kondapur": "+91 8885112242",
+    "Madhapur": "+91 9640112005",
+    "Manikonda": "+91 9182149094"
+}
 KITCHEN_NUMBERS = ["+918885112242", "+917671011599"]
 
 user_states = {}
@@ -116,7 +121,7 @@ def whatsapp():
             msg.body("⚠️ Couldn't detect your location. Try typing your area name.")
             return str(resp)
 
-    # Step 4: Detect Cart Submission (Loose Pattern)
+    # Step 4: Detect Cart Submission
     if state["step"] == "catalogue_shown" and (
         "estimated total" in incoming_msg or
         "view sent cart" in incoming_msg or
@@ -152,7 +157,12 @@ def whatsapp():
             return str(resp)
         else:
             order_id = save_order(from_number, branch, "Takeaway")
-            msg.body(f"🕒 Please pick up in 15 mins from {branch} branch.\n📍 {BRANCH_LINKS[branch]}\n🧾 Order ID: {order_id}")
+            msg.body(
+                f"🕒 Please pick up in 15 mins from {branch} branch.\n"
+                f"📍 {BRANCH_LINKS[branch]}\n"
+                f"🧾 Order ID: {order_id}\n"
+                f"📞 For any changes, call: {BRANCH_CONTACTS[branch]}"
+            )
             for kitchen in KITCHEN_NUMBERS:
                 twilio_client.messages.create(
                     from_=WHATSAPP_FROM,
@@ -167,7 +177,12 @@ def whatsapp():
         branch = state.get("branch", "Kondapur")
         address = incoming_msg
         order_id = save_order(from_number, branch, "Delivery", address)
-        msg.body(f"✅ Order placed!\n📍 Delivery to: {address}\n🧾 Order ID: {order_id}")
+        msg.body(
+            f"✅ Order placed!\n"
+            f"📍 Delivery to: {address}\n"
+            f"🧾 Order ID: {order_id}\n"
+            f"📞 For any changes, call: {BRANCH_CONTACTS[branch]}"
+        )
         for kitchen in KITCHEN_NUMBERS:
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
@@ -193,11 +208,9 @@ def whatsapp():
             )
         return ("", 200)
 
-    # True fallback
     msg.body("🤖 Please type 'hi' to start your order.")
     return str(resp)
 
-# CSV Routes
 @app.route("/download-unserviceables")
 def download_unserviceables():
     return send_file("unserviceable_users.csv", as_attachment=True)
