@@ -13,7 +13,7 @@ app = Flask(__name__)
 
 # Twilio Config
 TWILIO_SID = 'AC96d4eedb5a670c040181473cc2710d52'
-TWILIO_AUTH = 'eb7baed508c4da7fac7c5a5d537e5621'
+TWILIO_AUTH = '7b4b18aab19134c83f1db7f22b43a39e'
 WHATSAPP_FROM = 'whatsapp:+14134145410'
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
@@ -57,9 +57,6 @@ def whatsapp():
     from_number = request.values.get("From")
     latitude = request.values.get("Latitude")
     longitude = request.values.get("Longitude")
-
-    print("DEBUG incoming_msg:", incoming_msg)
-    print("DEBUG button_text:", button_text)
 
     resp = MessagingResponse()
     msg = resp.message()
@@ -119,12 +116,12 @@ def whatsapp():
             msg.body("⚠️ Couldn't detect your location. Try typing your area name.")
             return str(resp)
 
-    # Step 4: Detect Cart Submission (smart match)
+    # Step 4: Detect Cart Submission (Loose Pattern)
     if state["step"] == "catalogue_shown" and (
         "estimated total" in incoming_msg or
+        "view sent cart" in incoming_msg or
         "₹" in incoming_msg and "item" in incoming_msg or
-        incoming_msg.startswith("1 item") or
-        "view sent cart" in incoming_msg
+        incoming_msg.startswith("1 item")
     ):
         twilio_client.messages.create(
             from_=WHATSAPP_FROM,
@@ -140,7 +137,7 @@ def whatsapp():
             )
         return ("", 200)
 
-    # Step 5: Delivery/Takeaway from Template
+    # Step 5: Delivery/Takeaway Selection
     if state["step"] == "order_type_selection" and button_text in ["delivery", "takeaway"]:
         branch = "Kondapur"
         try:
@@ -155,17 +152,17 @@ def whatsapp():
             return str(resp)
         else:
             order_id = save_order(from_number, branch, "Takeaway")
-            msg.body(f"🕒 Please pick up your order in 15 mins from {branch} branch.\n📍 {BRANCH_LINKS[branch]}\n🧾 Order ID: {order_id}")
+            msg.body(f"🕒 Please pick up in 15 mins from {branch} branch.\n📍 {BRANCH_LINKS[branch]}\n🧾 Order ID: {order_id}")
             for kitchen in KITCHEN_NUMBERS:
                 twilio_client.messages.create(
                     from_=WHATSAPP_FROM,
                     to=f"whatsapp:{kitchen}",
-                    body=f"🧾 New Takeaway Order\nBranch: {branch}\nOrder ID: {order_id}\nCustomer: {from_number}"
+                    body=f"🧾 Takeaway Order\nBranch: {branch}\nOrder ID: {order_id}\nCustomer: {from_number}"
                 )
             user_states[from_number] = {"step": "start"}
             return str(resp)
 
-    # Step 6: Delivery Address Handler
+    # Step 6: Capture Delivery Address
     if state.get("step") == "awaiting_address":
         branch = state.get("branch", "Kondapur")
         address = incoming_msg
@@ -175,12 +172,28 @@ def whatsapp():
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=f"whatsapp:{kitchen}",
-                body=f"🧾 New Delivery Order\nBranch: {branch}\nOrder ID: {order_id}\nAddress: {address}\nCustomer: {from_number}"
+                body=f"🧾 Delivery Order\nBranch: {branch}\nOrder ID: {order_id}\nAddress: {address}\nCustomer: {from_number}"
             )
         user_states[from_number] = {"step": "start"}
         return str(resp)
 
-    # Fallback
+    # Step 7: Fallback becomes a trigger if state is catalogue_shown
+    if state.get("step") == "catalogue_shown":
+        twilio_client.messages.create(
+            from_=WHATSAPP_FROM,
+            to=from_number,
+            content_sid="HX6a4548eddff22056b5f4727db8ce5dcd"
+        )
+        user_states[from_number] = {"step": "order_type_selection"}
+        for kitchen in KITCHEN_NUMBERS:
+            twilio_client.messages.create(
+                from_=WHATSAPP_FROM,
+                to=f"whatsapp:{kitchen}",
+                body=f"🛎️ Fallback used to detect cart. Sent delivery/takeaway to {from_number}"
+            )
+        return ("", 200)
+
+    # True fallback
     msg.body("🤖 Please type 'hi' to start your order.")
     return str(resp)
 
