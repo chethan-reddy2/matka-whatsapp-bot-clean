@@ -267,6 +267,16 @@ def update_status():
         to=phone,
         body=msg
     )
+    rows = []
+    with open("orders.csv", newline='', encoding="utf-8") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if row[0] == order_id and len(row) >= 7:
+                row[6] = status.capitalize()
+            rows.append(row)
+    with open("orders.csv", "w", newline='', encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerows(rows)    
     return redirect(url_for("dashboard"))
 
 DASHBOARD_TEMPLATE = """
