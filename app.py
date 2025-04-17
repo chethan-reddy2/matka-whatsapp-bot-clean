@@ -49,33 +49,33 @@ def whatsapp():
 
     state = user_states.get(from_number, {"step": "start"})
 
-    # Step 1: Greeting
+    # Step 1: Greeting with Button Template
     if incoming_msg in ["hi", "hello"] or state["step"] == "start":
         twilio_client.messages.create(
             from_=WHATSAPP_FROM,
             to=from_number,
-            content_sid="HXb044cc05b74e2472d4c5838d94c8c6c4"  # greeting template
+            content_sid="HXe1b289e2a199611ad5b7c864f97a024c"  # updated greeting template with buttons
         )
         user_states[from_number] = {"step": "greeted"}
         return ("", 200)
 
-    # Step 2: Main Menu Options
+    # Step 2: Button/Option Handling
     elif state["step"] == "greeted":
-        if incoming_msg == "1":
+        if incoming_msg in ["1", "order food"]:
             msg.body("📍 Please share your live location or type your area name to check delivery availability.")
             user_states[from_number] = {"step": "awaiting_location"}
             return str(resp)
 
-        elif incoming_msg in ["2", "3"]:
+        elif incoming_msg in ["2", "bulk order", "3", "other query"]:
             msg.body("📲 For bulk orders or queries, message us directly: https://wa.me/918688641919")
             user_states[from_number] = {"step": "start"}
             return str(resp)
 
         else:
-            msg.body("❓ Please reply with:\n1️⃣ Order Food\n2️⃣ Bulk Order\n3️⃣ Other Query")
+            msg.body("❓ Please reply with one of the following:\n🟢 Order Food\n📦 Bulk Order\n❓ Other Query")
             return str(resp)
 
-    # Step 3: Location Handling
+    # Step 3: Handle Location Input
     elif state["step"] == "awaiting_location":
         try:
             if latitude and longitude:
@@ -91,7 +91,6 @@ def whatsapp():
             for branch, coords in BRANCHES.items():
                 if geodesic(user_coords, coords).km <= 2:
                     save_location_info(from_number, user_coords[0], user_coords[1], branch)
-                    # Confirm serviceable and send menu
                     msg.body(f"🎉 Hurray! We can deliver to you from our {branch} branch. Here's our menu 👇")
                     twilio_client.messages.create(
                         from_=WHATSAPP_FROM,
@@ -111,7 +110,7 @@ def whatsapp():
             msg.body("⚠️ Couldn't detect your location. Please try again with area name or pin code.")
             return str(resp)
 
-    # Default fallback
+    # Fallback
     msg.body("🤖 Please type 'hi' to start your order.")
     return str(resp)
 
