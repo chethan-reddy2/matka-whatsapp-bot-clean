@@ -115,6 +115,7 @@ def whatsapp():
                         to=from_number,
                         content_sid="HX79124164c9b84e23a12f0765425f7e86"  # fruitcustard_cat_menu
                     )
+                    msg.body("🛍️ After selecting items from the catalog, type *order* to proceed.")
                     user_states[from_number] = {"step": "catalogue_shown"}
                     return str(resp)
 
@@ -128,8 +129,8 @@ def whatsapp():
             msg.body("⚠️ Couldn't detect your location. Please try again with area name or pin code.")
             return str(resp)
 
-    # Step 4: Detect Catalog "Place Order"
-    elif state["step"] == "catalogue_shown" and any(word in incoming_msg for word in ["oatmeal", "custard", "delight", "family", "pack", "order", "strawberry", "jumbo"]):
+    # Step 4: Detect "order" typed manually after using catalog
+    elif state["step"] == "catalogue_shown" and incoming_msg in ["order", "place order"]:
         twilio_client.messages.create(
             from_=WHATSAPP_FROM,
             to=from_number,
