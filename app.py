@@ -2,7 +2,7 @@ import os
 import csv
 import uuid
 import re
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, render_template_string, redirect, url_for
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
 import googlemaps
@@ -55,6 +55,7 @@ def save_order(phone, branch, order_type, address=None):
         csv.writer(f).writerow([order_id, phone, branch, order_type, address or "Takeaway", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
     return order_id
 
+# WhatsApp Main Flow
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
     incoming_msg = request.values.get("Body", "").strip().lower()
@@ -67,7 +68,6 @@ def whatsapp():
     msg = resp.message()
     state = user_states.get(from_number, {"step": "start"})
 
-    # Step 1: Greeting
     if incoming_msg in ["hi", "hello"] or state["step"] == "start":
         twilio_client.messages.create(
             from_=WHATSAPP_FROM,
@@ -77,7 +77,6 @@ def whatsapp():
         user_states[from_number] = {"step": "greeted"}
         return ("", 200)
 
-    # Step 2: Menu Options
     if state["step"] == "greeted":
         if incoming_msg in ["1", "order food"]:
             msg.body("📍 Please share your live location or type your area name to check delivery availability.")
@@ -91,7 +90,6 @@ def whatsapp():
             msg.body("❓ Reply with:\n1️⃣ Order Food\n2️⃣ Bulk Order\n3️⃣ Other Query")
             return str(resp)
 
-    # Step 3: Handle Location
     if state["step"] == "awaiting_location":
         try:
             if latitude and longitude:
@@ -121,7 +119,6 @@ def whatsapp():
             msg.body("⚠️ Couldn't detect your location. Try typing your area name.")
             return str(resp)
 
-    # Step 4: Detect Cart Submission
     if state["step"] == "catalogue_shown" and (
         "estimated total" in incoming_msg or
         "view sent cart" in incoming_msg or
@@ -142,7 +139,6 @@ def whatsapp():
             )
         return ("", 200)
 
-    # Step 5: Delivery/Takeaway Selection
     if state["step"] == "order_type_selection" and button_text in ["delivery", "takeaway"]:
         branch = "Kondapur"
         try:
@@ -172,7 +168,6 @@ def whatsapp():
             user_states[from_number] = {"step": "start"}
             return str(resp)
 
-    # Step 6: Capture Delivery Address
     if state.get("step") == "awaiting_address":
         branch = state.get("branch", "Kondapur")
         address = incoming_msg
@@ -192,7 +187,6 @@ def whatsapp():
         user_states[from_number] = {"step": "start"}
         return str(resp)
 
-    # Step 7: Fallback becomes a trigger if state is catalogue_shown
     if state.get("step") == "catalogue_shown":
         twilio_client.messages.create(
             from_=WHATSAPP_FROM,
@@ -211,6 +205,7 @@ def whatsapp():
     msg.body("🤖 Please type 'hi' to start your order.")
     return str(resp)
 
+# 📦 Update status from kitchen via WhatsApp
 @app.route("/update-order-status", methods=["POST"])
 def update_order_status():
     incoming_msg = request.values.get("Body", "").strip().lower()
@@ -244,6 +239,77 @@ def update_order_status():
             return ("Order ID not found.", 404)
     except Exception as e:
         return (f"Error: {str(e)}", 500)
+
+# 🖥️ Dashboard to manage status
+@app.route("/dashboard")
+def dashboard():
+    orders = []
+    with open("orders.csv", newline='', encoding="utf-8") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if row:
+                orders.append(row)
+    return render_template_string(DASHBOARD_TEMPLATE, orders=orders)
+
+@app.route("/update-status", methods=["POST"])
+def update_status():
+    order_id = request.form.get("order_id")
+    phone = request.form.get("phone")
+    status = request.form.get("status")
+    status_map = {
+        "preparing": "👨‍🍳 Your order is being prepared.",
+        "ready": "✅ Your order is ready!",
+        "delivered": "📦 Your order has been delivered."
+    }
+    msg = f"{status_map.get(status)}\n🧾 Order ID: {order_id}"
+    twilio_client.messages.create(
+        from_=WHATSAPP_FROM,
+        to=phone,
+        body=msg
+    )
+    return redirect(url_for("dashboard"))
+
+DASHBOARD_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<title>Order Dashboard</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="p-4">
+<h2>Order Status Dashboard</h2>
+<table class="table table-bordered">
+<thead>
+<tr><th>Order ID</th><th>Phone</th><th>Branch</th><th>Type</th><th>Address</th><th>Time</th><th>Update</th></tr>
+</thead>
+<tbody>
+{% for order in orders %}
+<tr>
+<td>{{ order[0] }}</td>
+<td>{{ order[1] }}</td>
+<td>{{ order[2] }}</td>
+<td>{{ order[3] }}</td>
+<td>{{ order[4] }}</td>
+<td>{{ order[5] }}</td>
+<td>
+  <form method="POST" action="/update-status" class="d-flex">
+    <input type="hidden" name="order_id" value="{{ order[0] }}">
+    <input type="hidden" name="phone" value="{{ order[1] }}">
+    <select name="status" class="form-select me-2">
+      <option disabled selected>Status</option>
+      <option value="preparing">Preparing</option>
+      <option value="ready">Ready</option>
+      <option value="delivered">Delivered</option>
+    </select>
+    <button class="btn btn-primary">Update</button>
+  </form>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</body>
+</html>
+"""
 
 @app.route("/download-unserviceables")
 def download_unserviceables():
