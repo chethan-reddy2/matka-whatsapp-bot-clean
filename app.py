@@ -1,4 +1,4 @@
-import os
+mport os
 import csv
 import uuid
 import re
@@ -9,7 +9,7 @@ import googlemaps
 from geopy.distance import geodesic
 import datetime
 
-app = Flask(__name__)
+app = Flask(_name_)
 
 # Twilio Config
 TWILIO_SID = 'AC96d4eedb5a670c040181473cc2710d52'
@@ -52,7 +52,7 @@ def save_location_info(phone, lat, lon, branch):
 def save_order(phone, branch, order_type, address=None):
     order_id = f"ORD-{uuid.uuid4().hex[:8].upper()}"
     with open("orders.csv", "a", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow([order_id, phone, branch, order_type, address or "Takeaway", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Pending"])
+        csv.writer(f).writerow([order_id, phone, branch, order_type, address or "Takeaway", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
     return order_id
 
 # WhatsApp Main Flow
@@ -79,15 +79,15 @@ def whatsapp():
 
     if state["step"] == "greeted":
         if incoming_msg in ["1", "order food"]:
-            msg.body("\ud83d\udccd Please share your live location or type your area name to check delivery availability.")
+            msg.body("📍 Please share your live location or type your area name to check delivery availability.")
             user_states[from_number] = {"step": "awaiting_location"}
             return str(resp)
         elif incoming_msg in ["2", "bulk order", "3", "other query"]:
-            msg.body("\ud83d\udcf2 For bulk orders or queries, message us: https://wa.me/918688641919")
+            msg.body("📲 For bulk orders or queries, message us: https://wa.me/918688641919")
             user_states[from_number] = {"step": "start"}
             return str(resp)
         else:
-            msg.body("\u2753 Reply with:\n1\ufe0f\u20e3 Order Food\n2\ufe0f\u20e3 Bulk Order\n3\ufe0f\u20e3 Other Query")
+            msg.body("❓ Reply with:\n1️⃣ Order Food\n2️⃣ Bulk Order\n3️⃣ Other Query")
             return str(resp)
 
     if state["step"] == "awaiting_location":
@@ -101,7 +101,7 @@ def whatsapp():
             for branch, coords in BRANCHES.items():
                 if geodesic(user_coords, coords).km <= 2:
                     save_location_info(from_number, user_coords[0], user_coords[1], branch)
-                    msg.body(f"\ud83c\udf89 We can deliver to you from {branch} branch. Here's our menu \ud83d\udc47")
+                    msg.body(f"🎉 We can deliver to you from {branch} branch. Here's our menu 👇")
                     twilio_client.messages.create(
                         from_=WHATSAPP_FROM,
                         to=from_number,
@@ -111,18 +111,18 @@ def whatsapp():
                     return str(resp)
 
             save_unserviceable_user(from_number)
-            msg.body("\u274c Sorry, we don't deliver to your area yet.")
+            msg.body("❌ Sorry, we don't deliver to your area yet.")
             user_states[from_number] = {"step": "start"}
             return str(resp)
         except Exception as e:
             print("Location error:", e)
-            msg.body("\u26a0\ufe0f Couldn't detect your location. Try typing your area name.")
+            msg.body("⚠️ Couldn't detect your location. Try typing your area name.")
             return str(resp)
 
     if state["step"] == "catalogue_shown" and (
         "estimated total" in incoming_msg or
         "view sent cart" in incoming_msg or
-        "\u20b9" in incoming_msg and "item" in incoming_msg or
+        "₹" in incoming_msg and "item" in incoming_msg or
         incoming_msg.startswith("1 item")
     ):
         twilio_client.messages.create(
@@ -135,7 +135,7 @@ def whatsapp():
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=f"whatsapp:{kitchen}",
-                body=f"\ud83d\udcee\ufe0f Customer {from_number} submitted cart. Awaiting delivery/takeaway choice."
+                body=f"🛎️ Customer {from_number} submitted cart. Awaiting delivery/takeaway choice."
             )
         return ("", 200)
 
@@ -148,22 +148,22 @@ def whatsapp():
             pass
 
         if button_text == "delivery":
-            msg.body("\ud83c\udfe0 Please enter your full delivery address:")
+            msg.body("🏠 Please enter your full delivery address:")
             user_states[from_number] = {"step": "awaiting_address", "branch": branch}
             return str(resp)
         else:
             order_id = save_order(from_number, branch, "Takeaway")
             msg.body(
-                f"\ud83d\udd52 Please pick up in 15 mins from {branch} branch.\n"
-                f"\ud83d\udccd {BRANCH_LINKS[branch]}\n"
-                f"\ud83e\uddfe Order ID: {order_id}\n"
-                f"\ud83d\udcde For any changes, call: {BRANCH_CONTACTS[branch]}"
+                f"🕒 Please pick up in 15 mins from {branch} branch.\n"
+                f"📍 {BRANCH_LINKS[branch]}\n"
+                f"🧾 Order ID: {order_id}\n"
+                f"📞 For any changes, call: {BRANCH_CONTACTS[branch]}"
             )
             for kitchen in KITCHEN_NUMBERS:
                 twilio_client.messages.create(
                     from_=WHATSAPP_FROM,
                     to=f"whatsapp:{kitchen}",
-                    body=f"\ud83e\uddfe Takeaway Order\nBranch: {branch}\nOrder ID: {order_id}\nCustomer: {from_number}"
+                    body=f"🧾 Takeaway Order\nBranch: {branch}\nOrder ID: {order_id}\nCustomer: {from_number}"
                 )
             user_states[from_number] = {"step": "start"}
             return str(resp)
@@ -173,16 +173,16 @@ def whatsapp():
         address = incoming_msg
         order_id = save_order(from_number, branch, "Delivery", address)
         msg.body(
-            f"\u2705 Order placed!\n"
-            f"\ud83d\udccd Delivery to: {address}\n"
-            f"\ud83e\uddfe Order ID: {order_id}\n"
-            f"\ud83d\udcde For any changes, call: {BRANCH_CONTACTS[branch]}"
+            f"✅ Order placed!\n"
+            f"📍 Delivery to: {address}\n"
+            f"🧾 Order ID: {order_id}\n"
+            f"📞 For any changes, call: {BRANCH_CONTACTS[branch]}"
         )
         for kitchen in KITCHEN_NUMBERS:
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=f"whatsapp:{kitchen}",
-                body=f"\ud83e\uddfe Delivery Order\nBranch: {branch}\nOrder ID: {order_id}\nAddress: {address}\nCustomer: {from_number}"
+                body=f"🧾 Delivery Order\nBranch: {branch}\nOrder ID: {order_id}\nAddress: {address}\nCustomer: {from_number}"
             )
         user_states[from_number] = {"step": "start"}
         return str(resp)
@@ -198,13 +198,49 @@ def whatsapp():
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=f"whatsapp:{kitchen}",
-                body=f"\ud83d\udcee\ufe0f Fallback used to detect cart. Sent delivery/takeaway to {from_number}"
+                body=f"🛎️ Fallback used to detect cart. Sent delivery/takeaway to {from_number}"
             )
         return ("", 200)
 
-    msg.body("\ud83e\udd16 Please type 'hi' to start your order.")
+    msg.body("🤖 Please type 'hi' to start your order.")
     return str(resp)
 
+# 📦 Update status from kitchen via WhatsApp
+@app.route("/update-order-status", methods=["POST"])
+def update_order_status():
+    incoming_msg = request.values.get("Body", "").strip().lower()
+    order_match = re.search(r"ord-[a-z0-9]+", incoming_msg)
+    if not order_match:
+        return ("Please include order ID (ORD-XXXX) and status (ready, preparing, delivered).", 200)
+
+    order_id = order_match.group().upper()
+    status_msg = ""
+    if "ready" in incoming_msg:
+        status_msg = "✅ Your order is ready!"
+    elif "preparing" in incoming_msg:
+        status_msg = "👨‍🍳 Your order is being prepared."
+    elif "delivered" in incoming_msg:
+        status_msg = "📦 Your order has been delivered."
+    else:
+        return ("Unknown status. Use: ready, preparing, delivered.", 200)
+
+    try:
+        with open("orders.csv", newline='', encoding="utf-8") as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if row[0] == order_id:
+                    phone = row[1]
+                    twilio_client.messages.create(
+                        from_=WHATSAPP_FROM,
+                        to=phone,
+                        body=f"{status_msg}\n🧾 Order ID: {order_id}"
+                    )
+                    return ("Customer notified.", 200)
+            return ("Order ID not found.", 404)
+    except Exception as e:
+        return (f"Error: {str(e)}", 500)
+
+# 🖥️ Dashboard to manage status
 @app.route("/dashboard")
 def dashboard():
     orders = []
@@ -221,33 +257,27 @@ def update_status():
     phone = request.form.get("phone")
     status = request.form.get("status")
     status_map = {
-        "preparing": "\ud83d\udc68\u200d\ud83c\udf73 Your order is being prepared.",
-        "ready": "\u2705 Your order is ready!",
-        "delivered": "\ud83d\ude9f Your order has been delivered."
+        "preparing": "👨‍🍳 Your order is being prepared.",
+        "ready": "✅ Your order is ready!",
+        "delivered": "📦 Your order has been delivered."
     }
-    msg = f"{status_map.get(status)}\n\ud83e\uddfe Order ID: {order_id}"
-    twilio_client.messages.create(from_=WHATSAPP_FROM, to=phone, body=msg)
-
-    # Update CSV
-    rows = []
-    with open("orders.csv", newline='', encoding="utf-8") as f:
-        reader = csv.reader(f)
-        rows = [row if row[0] != order_id else row[:-1] + [status.capitalize()] for row in reader]
-    with open("orders.csv", "w", newline='', encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerows(rows)
-
+    msg = f"{status_map.get(status)}\n🧾 Order ID: {order_id}"
+    twilio_client.messages.create(
+        from_=WHATSAPP_FROM,
+        to=phone,
+        body=msg
+    )
     return redirect(url_for("dashboard"))
 
 DASHBOARD_TEMPLATE = """
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
+<html lang=\"en\"><head><meta charset=\"UTF-8\">
 <title>Order Dashboard</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
 </head>
-<body class="p-4">
+<body class=\"p-4\">
 <h2>Order Status Dashboard</h2>
-<table class="table table-bordered">
+<table class=\"table table-bordered\">
 <thead>
 <tr><th>Order ID</th><th>Phone</th><th>Branch</th><th>Type</th><th>Address</th><th>Time</th><th>Status</th><th>Update</th></tr>
 </thead>
@@ -260,18 +290,18 @@ DASHBOARD_TEMPLATE = """
 <td>{{ order[3] }}</td>
 <td>{{ order[4] }}</td>
 <td>{{ order[5] }}</td>
-<td>{{ order[6] }}</td>
+<td>{{ order[6] if order|length > 6 else 'Pending' }}</td>
 <td>
-  <form method="POST" action="/update-status" class="d-flex">
-    <input type="hidden" name="order_id" value="{{ order[0] }}">
-    <input type="hidden" name="phone" value="{{ order[1] }}">
-    <select name="status" class="form-select me-2">
+  <form method=\"POST\" action=\"/update-status\" class=\"d-flex\">
+    <input type=\"hidden\" name=\"order_id\" value=\"{{ order[0] }}\">
+    <input type=\"hidden\" name=\"phone\" value=\"{{ order[1] }}\">
+    <select name=\"status\" class=\"form-select me-2\">
       <option disabled selected>Status</option>
-      <option value="preparing">Preparing</option>
-      <option value="ready">Ready</option>
-      <option value="delivered">Delivered</option>
+      <option value=\"preparing\">Preparing</option>
+      <option value=\"ready\">Ready</option>
+      <option value=\"delivered\">Delivered</option>
     </select>
-    <button class="btn btn-primary">Update</button>
+    <button class=\"btn btn-primary\">Update</button>
   </form>
 </td>
 </tr>
@@ -294,5 +324,5 @@ def download_locations():
 def download_orders():
     return send_file("orders.csv", as_attachment=True)
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
