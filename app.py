@@ -1,20 +1,21 @@
 import os
-from flask import Flask, request
+import csv
+from flask import Flask, request, send_file
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
 import googlemaps
 from geopy.distance import geodesic
+import datetime
 
 app = Flask(__name__)
 
-# --------------------- TWILIO CONFIG -----------------------
+# Twilio Configuration
 TWILIO_SID = 'AC96d4eedb5a670c040181473cc2710d52'
 TWILIO_AUTH = '7b4b18aab19134c83f1db7f22b43a39e'
 WHATSAPP_FROM = 'whatsapp:+14134145410'
-KITCHEN_WHATSAPP = 'whatsapp:+917671011599'
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
-# --------------------- GOOGLE MAPS -----------------------
+# Google Maps Configuration
 gmaps = googlemaps.Client(key="AIzaSyCuUz9N78WZAT1N38ffIDkbySI3_0zkZgE")
 BRANCHES = {
     "Kondapur": (17.47019976442252, 78.35272372527311),
@@ -22,85 +23,111 @@ BRANCHES = {
     "Manikonda": (17.403904212354316, 78.39079508109451)
 }
 
-# --------------------- STATE -----------------------
+# Save CSVs
+def save_unserviceable_user(phone):
+    with open("unserviceable_users.csv", "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([phone, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+
+def save_location_info(phone, lat, lon, branch):
+    with open("user_locations.csv", "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([phone, lat, lon, branch, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+
+# Store user state
 user_states = {}
 
-# --------------------- HELPERS -----------------------
-def get_servicable_branch(coords):
-    for branch, location in BRANCHES.items():
-        if geodesic(coords, location).km <= 2:
-            return branch
-    return None
-
-# --------------------- ROUTE -----------------------
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
     incoming_msg = request.values.get("Body", "").strip().lower()
     from_number = request.values.get("From")
     latitude = request.values.get("Latitude")
     longitude = request.values.get("Longitude")
-    postback = request.values.get("ButtonPayload")
 
     resp = MessagingResponse()
     msg = resp.message()
+
     state = user_states.get(from_number, {"step": "start"})
 
-    # Start with template reply
-    if state["step"] == "start" or incoming_msg in ["hi", "hello"]:
-        try:
-            twilio_client.messages.create(
-                from_=WHATSAPP_FROM,
-                to=from_number,
-                content_sid="HXb044cc05b74e2472d4c5838d94c8c6c4"  # fruitcustard_greeting
-            )
-        except Exception as e:
-            print("Template error:", e)
-        user_states[from_number] = {"step": "awaiting_main_selection"}
-        return str(resp)
+    # Step 1: Greeting
+    if incoming_msg in ["hi", "hello"] or state["step"] == "start":
+        twilio_client.messages.create(
+            from_=WHATSAPP_FROM,
+            to=from_number,
+            content_sid="HXb044cc05b74e2472d4c5838d94c8c6c4"  # greeting template
+        )
+        user_states[from_number] = {"step": "greeted"}
+        return ("", 200)
 
-    # Main selection postback
-    if state["step"] == "awaiting_main_selection":
-        if postback == "order_food":
-            msg.body("\ud83d\udccd Please share your live location or type your area name to check delivery availability.")
+    # Step 2: Main Menu Options
+    elif state["step"] == "greeted":
+        if incoming_msg == "1":
+            msg.body("📍 Please share your live location or type your area name to check delivery availability.")
             user_states[from_number] = {"step": "awaiting_location"}
             return str(resp)
-        elif postback in ["bulk_order", "other_query"]:
-            msg.body("\ud83d\udccd Please connect with us on WhatsApp: https://wa.me/918688641919")
+
+        elif incoming_msg in ["2", "3"]:
+            msg.body("📲 For bulk orders or queries, message us directly: https://wa.me/918688641919")
             user_states[from_number] = {"step": "start"}
             return str(resp)
 
-    # Location received
-    if state["step"] == "awaiting_location":
+        else:
+            msg.body("❓ Please reply with:\n1️⃣ Order Food\n2️⃣ Bulk Order\n3️⃣ Other Query")
+            return str(resp)
+
+    # Step 3: Location Handling
+    elif state["step"] == "awaiting_location":
         try:
             if latitude and longitude:
                 user_coords = (float(latitude), float(longitude))
+            elif incoming_msg:
+                loc_data = gmaps.geocode(incoming_msg)
+                loc = loc_data[0]['geometry']['location']
+                user_coords = (loc['lat'], loc['lng'])
             else:
-                loc_data = gmaps.geocode(incoming_msg)[0]["geometry"]["location"]
-                user_coords = (loc_data["lat"], loc_data["lng"])
+                msg.body("⚠️ Please share your live location or area name.")
+                return str(resp)
 
-            branch = get_servicable_branch(user_coords)
-            if branch:
-                msg.body(f"\u2705 You're within delivery range of our {branch} branch! \nTap below to view our catalog.")
-                try:
+            for branch, coords in BRANCHES.items():
+                if geodesic(user_coords, coords).km <= 2:
+                    save_location_info(from_number, user_coords[0], user_coords[1], branch)
+                    # Confirm serviceable and send menu
+                    msg.body(f"🎉 Hurray! We can deliver to you from our {branch} branch. Here's our menu 👇")
                     twilio_client.messages.create(
                         from_=WHATSAPP_FROM,
                         to=from_number,
                         content_sid="HX79124164c9b84e23a12f0765425f7e86"  # fruitcustard_cat_menu
                     )
-                except Exception as e:
-                    print("Catalog send error:", e)
-            else:
-                msg.body("\u274c Sorry! You're currently outside our delivery area. We'll notify you once we reach your location. \nThanks for your interest! \ud83d\ude4f")
+                    user_states[from_number] = {"step": "catalogue_shown"}
+                    return str(resp)
+
+            save_unserviceable_user(from_number)
+            msg.body("❌ Sorry, we don't deliver to your area yet. We'll notify you when we do!")
             user_states[from_number] = {"step": "start"}
             return str(resp)
+
         except Exception as e:
             print("Location error:", e)
-            msg.body("\u26a0\ufe0f Couldn't detect your location. Please try again with a known area name or pin code.")
+            msg.body("⚠️ Couldn't detect your location. Please try again with area name or pin code.")
             return str(resp)
 
-    msg.body("\ud83e\udd16 Type 'hi' to restart your order.")
+    # Default fallback
+    msg.body("🤖 Please type 'hi' to start your order.")
     return str(resp)
 
-# --------------------- RUN -----------------------
+@app.route("/download-unserviceables", methods=["GET"])
+def download_unserviceables():
+    try:
+        return send_file("unserviceable_users.csv", as_attachment=True)
+    except Exception as e:
+        return f"Error downloading file: {e}", 500
+
+@app.route("/download-locations", methods=["GET"])
+def download_locations():
+    try:
+        return send_file("user_locations.csv", as_attachment=True)
+    except Exception as e:
+        return f"Error downloading file: {e}", 500
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
