@@ -16,7 +16,7 @@ TWILIO_AUTH = '7b4b18aab19134c83f1db7f22b43a39e'
 WHATSAPP_FROM = 'whatsapp:+14134145410'
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
-# Google Maps API
+# Google Maps Configuration
 gmaps = googlemaps.Client(key="AIzaSyCuUz9N78WZAT1N38ffIDkbySI3_0zkZgE")
 
 # Branch Coordinates
@@ -79,23 +79,21 @@ def whatsapp():
         user_states[from_number] = {"step": "greeted"}
         return ("", 200)
 
-    # Step 2: Button/Option Handling
+    # Step 2: Menu Options
     elif state["step"] == "greeted":
         if incoming_msg in ["1", "order food"]:
             msg.body("📍 Please share your live location or type your area name to check delivery availability.")
             user_states[from_number] = {"step": "awaiting_location"}
             return str(resp)
-
         elif incoming_msg in ["2", "bulk order", "3", "other query"]:
             msg.body("📲 For bulk orders or queries, message us directly: https://wa.me/918688641919")
             user_states[from_number] = {"step": "start"}
             return str(resp)
-
         else:
             msg.body("❓ Please reply with:\n🟢 Order Food\n📦 Bulk Order\n❓ Other Query")
             return str(resp)
 
-    # Step 3: Location Handling
+    # Step 3: Handle location input
     elif state["step"] == "awaiting_location":
         try:
             if latitude and longitude:
@@ -130,17 +128,17 @@ def whatsapp():
             msg.body("⚠️ Couldn't detect your location. Please try again with area name or pin code.")
             return str(resp)
 
-    # Step 4: After Place Order is clicked
-    elif incoming_msg == "place order":
+    # Step 4: Detect Catalog "Place Order"
+    elif state["step"] == "catalogue_shown" and any(word in incoming_msg for word in ["oatmeal", "custard", "delight", "family", "pack", "order", "strawberry", "jumbo"]):
         twilio_client.messages.create(
             from_=WHATSAPP_FROM,
             to=from_number,
-            content_sid="HX6a4548eddff22056b5f4727db8ce5dcd"  # Delivery / Takeaway template
+            content_sid="HX6a4548eddff22056b5f4727db8ce5dcd"  # delivery or takeaway buttons
         )
         user_states[from_number] = {"step": "order_type_selection"}
         return ("", 200)
 
-    # Step 5: Handle Delivery or Takeaway
+    # Step 5: Delivery or Takeaway
     elif state["step"] == "order_type_selection":
         if incoming_msg == "delivery":
             msg.body("🏠 Please enter your full delivery address including area, street, and any landmark:")
@@ -166,7 +164,7 @@ def whatsapp():
             user_states[from_number] = {"step": "start"}
             return str(resp)
 
-    # Step 6: Capture Delivery Address
+    # Step 6: Get Delivery Address
     elif state["step"] == "awaiting_address":
         try:
             with open("user_locations.csv", encoding="utf-8") as f:
@@ -189,6 +187,7 @@ def whatsapp():
         user_states[from_number] = {"step": "start"}
         return str(resp)
 
+    # Default fallback
     msg.body("🤖 Please type 'hi' to start your order.")
     return str(resp)
 
