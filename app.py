@@ -86,9 +86,11 @@ def whatsapp():
         lon = state.get("lon", "")
         order_id = save_order(from_number, name, branch, "Delivery", incoming_msg, lat, lon)
         msg.body(
-            f"✅ Order placed!
+            f"""✅ Order placed!
 📍 Delivery to: {incoming_msg}
-🧾 Order ID: {order_id}\n\n📞 For changes, call us at {SUPPORT_NUMBER}"
+🧾 Order ID: {order_id}
+
+📞 For changes, call us at {SUPPORT_NUMBER}"""
         )
         for kitchen in KITCHEN_NUMBERS:
             twilio_client.messages.create(
@@ -106,7 +108,11 @@ def whatsapp():
         lon = state.get("lon", "")
         order_id = save_order(from_number, name, branch, "Takeaway", "Takeaway", lat, lon)
         msg.body(
-            f"🕒 Please pick up in 15 mins from {branch} branch.\n📍 {BRANCH_LINKS[branch]}\n🧾 Order ID: {order_id}\n\n📞 For queries, call us at {SUPPORT_NUMBER}"
+            f"""🕒 Please pick up in 15 mins from {branch} branch.
+📍 {BRANCH_LINKS[branch]}
+🧾 Order ID: {order_id}
+
+📞 For queries, call us at {SUPPORT_NUMBER}"""
         )
         for kitchen in KITCHEN_NUMBERS:
             twilio_client.messages.create(
