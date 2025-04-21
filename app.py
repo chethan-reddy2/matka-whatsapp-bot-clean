@@ -88,15 +88,15 @@ def whatsapp():
 
     if state["step"] == "greeted":
         if incoming_msg in ["1", "order food"]:
-            msg.body("📍 Please share your live location or type your area name to check delivery availability.")
+            msg.body("\ud83d\udccd Please share your live location or type your area name to check delivery availability.")
             user_states[from_number] = {"step": "awaiting_location"}
             return str(resp)
         elif incoming_msg in ["2", "bulk order", "3", "other query"]:
-            msg.body("📲 For bulk orders or queries, message us: https://wa.me/918688641919")
+            msg.body("\ud83d\udcf2 For bulk orders or queries, message us: https://wa.me/918688641919")
             user_states[from_number] = {"step": "start"}
             return str(resp)
         else:
-            msg.body("❓ Reply with:\n1️⃣ Order Food\n2️⃣ Bulk Order\n3️⃣ Other Query")
+            msg.body("\u2753 Reply with:\n1\ufe0f\u20e3 Order Food\n2\ufe0f\u20e3 Bulk Order\n3\ufe0f\u20e3 Other Query")
             return str(resp)
 
     if state["step"] == "awaiting_location":
@@ -110,7 +110,7 @@ def whatsapp():
             for branch, coords in BRANCHES.items():
                 if geodesic(user_coords, coords).km <= 2:
                     save_location_info(from_number, user_coords[0], user_coords[1], branch)
-                    msg.body(f"🎉 We can deliver to you from {branch} branch. Here's our menu 👇")
+                    msg.body(f"\ud83c\udf89 We can deliver to you from {branch} branch. Here's our menu \ud83d\udc47")
                     twilio_client.messages.create(
                         from_=WHATSAPP_FROM,
                         to=from_number,
@@ -120,31 +120,32 @@ def whatsapp():
                     return str(resp)
 
             save_unserviceable_user(from_number)
-            msg.body("❌ Sorry, we don't deliver to your area yet.")
+            msg.body("\u274c Sorry, we don't deliver to your area yet.")
             user_states[from_number] = {"step": "start"}
             return str(resp)
         except Exception as e:
             print("Location error:", e)
-            msg.body("⚠️ Couldn't detect your location. Try typing your area name.")
+            msg.body("\u26a0\ufe0f Couldn't detect your location. Try typing your area name.")
             return str(resp)
 
     if state["step"] == "catalogue_shown" and (
+        re.match(r"\\d+ item", incoming_msg) or
         "estimated total" in incoming_msg or
         "view sent cart" in incoming_msg or
-        "₹" in incoming_msg and "item" in incoming_msg or
-        incoming_msg.startswith("1 item")
+        "\u20b9" in incoming_msg and "item" in incoming_msg
     ):
+        user_states[from_number]["cart"] = incoming_msg
         twilio_client.messages.create(
             from_=WHATSAPP_FROM,
             to=from_number,
             content_sid="HX6a4548eddff22056b5f4727db8ce5dcd"
         )
-        user_states[from_number] = {"step": "order_type_selection"}
+        user_states[from_number]["step"] = "order_type_selection"
         for kitchen in KITCHEN_NUMBERS:
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=f"whatsapp:{kitchen}",
-                body=f"🛎️ Customer {from_number} submitted cart. Awaiting delivery/takeaway choice."
+                body=f"\ud83d\udece\ufe0f Customer {from_number} submitted cart:\n{incoming_msg}\nAwaiting delivery/takeaway choice."
             )
         return ("", 200)
 
