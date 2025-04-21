@@ -13,7 +13,7 @@ app = Flask(__name__)
 
 # Twilio Config
 TWILIO_SID = 'AC96d4eedb5a670c040181473cc2710d52'
-TWILIO_AUTH = 'eb7baed508c4da7fac7c5a5d537e5621'
+TWILIO_AUTH = 'b60f99f091d59e8a1f47b8be20c25a98'
 WHATSAPP_FROM = 'whatsapp:+14134145410'
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
