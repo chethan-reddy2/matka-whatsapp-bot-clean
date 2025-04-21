@@ -153,8 +153,7 @@ def whatsapp():
             )
         return ("", 200)
 
-    msg.body("🤖 Please type 'hi' to start your order.")
-    return str(resp)
+    
 
     if state["step"] == "order_type_selection" and button_text in ["delivery", "takeaway"]:
         branch = "Kondapur"
