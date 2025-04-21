@@ -67,7 +67,7 @@ def save_order(phone, branch, order_type, address=None):
 # WhatsApp Main Flow
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
-    incoming_msg = request.values.get("Body", "").strip().lower()
+    incoming_msg = (request.values.get("ButtonText") or request.values.get("Body") or "").strip().lower()
     button_text = request.values.get("ButtonText", "").strip().lower()
     from_number = request.values.get("From")
     latitude = request.values.get("Latitude")
