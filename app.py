@@ -49,10 +49,19 @@ def save_location_info(phone, lat, lon, branch):
     with open("user_locations.csv", "a", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([phone, lat, lon, branch, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
+
 def save_order(phone, branch, order_type, address=None):
     order_id = f"ORD-{uuid.uuid4().hex[:8].upper()}"
     with open("orders.csv", "a", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow([order_id, phone, branch, order_type, address or "Takeaway", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+        csv.writer(f).writerow([
+            order_id,
+            phone,
+            branch,
+            order_type,
+            address or "Takeaway",
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Pending"  # <- ADD THIS STATUS COLUMN
+        ])
     return order_id
 
 # WhatsApp Main Flow
