@@ -13,7 +13,7 @@ app = Flask(__name__)
 
 # Twilio Config
 TWILIO_SID = 'AC96d4eedb5a670c040181473cc2710d52'
-TWILIO_AUTH = '24d3c3c4fda6a51aa34c19513bc43358'
+TWILIO_AUTH = 'b60f99f091d59e8a1f47b8be20c25a98'
 WHATSAPP_FROM = 'whatsapp:+14134145410'
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
@@ -67,7 +67,7 @@ def save_order(phone, branch, order_type, address=None):
 # WhatsApp Main Flow
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
-    incoming_msg = request.values.get("Body", "").strip()
+    incoming_msg = request.values.get("Body", "").strip().lower()
     button_text = request.values.get("ButtonText", "").strip().lower()
     from_number = request.values.get("From")
     latitude = request.values.get("Latitude")
@@ -77,7 +77,7 @@ def whatsapp():
     msg = resp.message()
     state = user_states.get(from_number, {"step": "start"})
 
-    if incoming_msg.lower() in ["hi", "hello"] or state["step"] == "start":
+    if incoming_msg in ["hi", "hello"] or state["step"] == "start":
         twilio_client.messages.create(
             from_=WHATSAPP_FROM,
             to=from_number,
@@ -87,11 +87,11 @@ def whatsapp():
         return ("", 200)
 
     if state["step"] == "greeted":
-        if incoming_msg.lower() in ["1", "order food"]:
+        if incoming_msg in ["1", "order food"]:
             msg.body("📍 Please share your live location or type your area name to check delivery availability.")
             user_states[from_number] = {"step": "awaiting_location"}
             return str(resp)
-        elif incoming_msg.lower() in ["2", "bulk order", "3", "other query"]:
+        elif incoming_msg in ["2", "bulk order", "3", "other query"]:
             msg.body("📲 For bulk orders or queries, message us: https://wa.me/918688641919")
             user_states[from_number] = {"step": "start"}
             return str(resp)
@@ -128,40 +128,27 @@ def whatsapp():
             msg.body("⚠️ Couldn't detect your location. Try typing your area name.")
             return str(resp)
 
-    if state["step"] == "catalogue_shown":
-        msg.body("🛒 Please tap *View Sent Cart* to confirm your order.")
-        user_states[from_number]["step"] = "awaiting_cart"
-        return str(resp)
-
-    if state["step"] == "awaiting_cart" and (
-        "estimated total" in incoming_msg.lower() or
-        "view sent cart" in incoming_msg.lower() or
-        "₹" in incoming_msg and "item" in incoming_msg.lower() or
-        incoming_msg.lower().startswith("1 item")
+    if state["step"] == "catalogue_shown" and (
+        "estimated total" in incoming_msg or
+        "view sent cart" in incoming_msg or
+        "₹" in incoming_msg and "item" in incoming_msg or
+        incoming_msg.startswith("1 item")
     ):
-        user_states[from_number]["cart"] = incoming_msg
-        user_states[from_number]["step"] = "order_type_selection"
-
         twilio_client.messages.create(
             from_=WHATSAPP_FROM,
             to=from_number,
             content_sid="HX6a4548eddff22056b5f4727db8ce5dcd"
         )
-
+        user_states[from_number] = {"step": "order_type_selection"}
         for kitchen in KITCHEN_NUMBERS:
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=f"whatsapp:{kitchen}",
-                body=f"📬 Customer {from_number} submitted cart:\n{incoming_msg}\nAwaiting delivery/takeaway choice."
+                body=f"🛎️ Customer {from_number} submitted cart. Awaiting delivery/takeaway choice."
             )
         return ("", 200)
 
     if state["step"] == "order_type_selection" and button_text in ["delivery", "takeaway"]:
-        if not user_states.get(from_number, {}).get("cart"):
-            msg.body("❗We couldn’t detect your order. Please tap *View Sent Cart* before choosing delivery or takeaway.")
-            user_states[from_number]["step"] = "awaiting_cart"
-            return str(resp)
-
         branch = "Kondapur"
         try:
             with open("user_locations.csv", encoding="utf-8") as f:
@@ -171,11 +158,7 @@ def whatsapp():
 
         if button_text == "delivery":
             msg.body("🏠 Please enter your full delivery address:")
-            user_states[from_number] = {
-                "step": "awaiting_address",
-                "branch": branch,
-                "cart": user_states[from_number].get("cart", "")
-            }
+            user_states[from_number] = {"step": "awaiting_address", "branch": branch}
             return str(resp)
         else:
             order_id = save_order(from_number, branch, "Takeaway")
@@ -189,10 +172,7 @@ def whatsapp():
                 twilio_client.messages.create(
                     from_=WHATSAPP_FROM,
                     to=f"whatsapp:{kitchen}",
-                    body=(
-                        f"🧾 Takeaway Order\nBranch: {branch}\nOrder ID: {order_id}\n"
-                        f"Customer: {from_number}\nCart: {user_states[from_number].get('cart', '')}"
-                    )
+                    body=f"🧾 Takeaway Order\nBranch: {branch}\nOrder ID: {order_id}\nCustomer: {from_number}"
                 )
             user_states[from_number] = {"step": "start"}
             return str(resp)
@@ -211,34 +191,29 @@ def whatsapp():
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=f"whatsapp:{kitchen}",
-                body=(
-                    f"🧾 Delivery Order\nBranch: {branch}\nOrder ID: {order_id}\n"
-                    f"Address: {address}\nCustomer: {from_number}\nCart: {state.get('cart', '')}"
-                )
+                body=f"🧾 Delivery Order\nBranch: {branch}\nOrder ID: {order_id}\nAddress: {address}\nCustomer: {from_number}"
             )
         user_states[from_number] = {"step": "start"}
         return str(resp)
 
+    if state.get("step") == "catalogue_shown":
+        twilio_client.messages.create(
+            from_=WHATSAPP_FROM,
+            to=from_number,
+            content_sid="HX6a4548eddff22056b5f4727db8ce5dcd"
+        )
+        user_states[from_number] = {"step": "order_type_selection"}
+        for kitchen in KITCHEN_NUMBERS:
+            twilio_client.messages.create(
+                from_=WHATSAPP_FROM,
+                to=f"whatsapp:{kitchen}",
+                body=f"🛎️ Fallback used to detect cart. Sent delivery/takeaway to {from_number}"
+            )
+        return ("", 200)
+
     msg.body("🤖 Please type 'hi' to start your order.")
     return str(resp)
 
-
-@app.route("/meta-webhook", methods=["GET", "POST"])
-def meta_webhook():
-    if request.method == "GET":
-        verify_token = "Surya@matka@25"  # This must match exactly what you enter on Facebook
-        mode = request.args.get("hub.mode")
-        token = request.args.get("hub.verify_token")
-        challenge = request.args.get("hub.challenge")
-
-        if mode == "subscribe" and token == verify_token:
-            print("✅ Webhook verified successfully")
-            return challenge, 200
-        else:
-            return "❌ Verification token mismatch", 403
-
-    # Later you'll handle POST here
-    return "Webhook endpoint ready", 200
 # 📦 Update status from kitchen via WhatsApp
 @app.route("/update-order-status", methods=["POST"])
 def update_order_status():
@@ -284,7 +259,23 @@ def dashboard():
             if row:
                 orders.append(row)
     return render_template_string(DASHBOARD_TEMPLATE, orders=orders)
+    
+@app.route("/meta-webhook", methods=["GET", "POST"])
+def meta_webhook():
+    if request.method == "GET":
+        verify_token = "Surya@matka@25"  # This must match exactly what you enter on Facebook
+        mode = request.args.get("hub.mode")
+        token = request.args.get("hub.verify_token")
+        challenge = request.args.get("hub.challenge")
 
+        if mode == "subscribe" and token == verify_token:
+            print("✅ Webhook verified successfully")
+            return challenge, 200
+        else:
+            return "❌ Verification token mismatch", 403
+
+    # Later you'll handle POST here
+    return "Webhook endpoint ready", 200
 @app.route("/update-status", methods=["POST"])
 def update_status():
     order_id = request.form.get("order_id")
