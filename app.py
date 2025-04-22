@@ -270,21 +270,6 @@ def dashboard():
 
 @app.route("/meta-webhook", methods=["GET", "POST"])
 def meta_webhook():
-    # 🔐 GET - Webhook Verification
-    if request.method == "GET":
-        verify_token = "matka"  # Use exactly what you entered in Meta
-        mode = request.args.get("hub.mode")
-        token = request.args.get("hub.verify_token")
-        challenge = request.args.get("hub.challenge")
-
-        if mode == "subscribe" and token == verify_token:
-            print("✅ Webhook verified successfully", flush=True)
-            return challenge, 200
-        else:
-            print("❌ Verification failed", flush=True)
-            return "Verification token mismatch", 403
-
-    # 📩 POST - Webhook Payload Handling
     if request.method == "POST":
         print("📬 POST /meta-webhook triggered", flush=True)
         data = request.get_json()
@@ -292,72 +277,27 @@ def meta_webhook():
         print(data, flush=True)
 
         try:
-            field = data.get("entry", [{}])[0].get("changes", [{}])[0].get("field")
-            value = data.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {})
+            entry = data.get("entry", [])[0]
+            changes = entry.get("changes", [])[0]
+            value = changes.get("value", {})
+            messages = value.get("messages", [])
 
-            if field == "messages":
-                messages = value.get("messages", [])
-                contacts = value.get("contacts", [])
+            if messages:
+                msg = messages[0]
+                msg_type = msg.get("type")
+                from_number = msg.get("from")
 
-                if messages:
-                    msg = messages[0]
-                    from_number = msg.get("from")
-                    msg_type = msg.get("type")
-
-                    if msg_type == "text":
-                        text_body = msg.get("text", {}).get("body", "")
-                        print(f"💬 Text from {from_number}: {text_body}", flush=True)
-
-                    elif msg_type == "order":
-                        order_details = msg.get("order", {})
-                        catalog_id = order_details.get("catalog_id", "")
-                        product_items = order_details.get("product_items", [])
-
-                        print(f"🛒 Order received from {from_number}!", flush=True)
-                        print(f"📦 Catalog ID: {catalog_id}", flush=True)
-
-                        for item in product_items:
-                            product_id = item.get("product_retailer_id")
-                            quantity = item.get("quantity")
-                            item_price = item.get("item_price")
-                            currency = item.get("currency", "INR")
-
-                            print(f"➡️ Product: {product_id} | Qty: {quantity} | Price: ₹{item_price} {currency}", flush=True)
-
-                        # Save to CSV for kitchen
-                        with open("catalog_orders.csv", "a", newline="", encoding="utf-8") as f:
-                            writer = csv.writer(f)
-                            for item in product_items:
-                                writer.writerow([
-                                    from_number,
-                                    catalog_id,
-                                    item.get("product_retailer_id"),
-                                    item.get("quantity"),
-                                    item.get("item_price"),
-                                    item.get("currency", "INR"),
-                                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                ])
-
-            elif field == "account_update":
-                event = value.get("event")
-                phone_number = value.get("phone_number")
-                print(f"📢 Account Update: {event} for {phone_number}", flush=True)
-
-            elif field == "flows":
-                flow_event = value.get("event")
-                flow_message = value.get("message")
-                print(f"🔄 Flow Event: {flow_event}", flush=True)
-                print(f"📋 Flow Message: {flow_message}", flush=True)
-
-            else:
-                print("ℹ️ Other field received:", field, flush=True)
+                if msg_type == "order":
+                    order = msg.get("order", {})
+                    product_items = order.get("product_items", [])
+                    print(f"🛒 Catalog Order received from {from_number}:", flush=True)
+                    for item in product_items:
+                        print(f"🧾 Product ID: {item['product_retailer_id']}, Quantity: {item['quantity']}, Price: ₹{item['item_price']}", flush=True)
 
         except Exception as e:
-            print(f"⚠️ Error processing webhook data: {str(e)}", flush=True)
+            print(f"⚠️ Error parsing catalog order: {str(e)}", flush=True)
 
         return "Webhook POST received", 200
-
-
 
 
 
