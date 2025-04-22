@@ -88,24 +88,19 @@ def whatsapp():
 
     if state["step"] == "greeted":
         if incoming_msg in ["1", "order food"]:
-            msg.body("📍 Please share your live location or type your area name to check delivery availability.")
+            msg.body("\ud83d\udccd Please share your live location or type your area name to check delivery availability.")
             user_states[from_number] = {"step": "awaiting_location"}
             return str(resp)
         elif incoming_msg in ["2", "bulk order", "3", "other query"]:
-            msg.body("📲 For bulk orders or queries, message us: https://wa.me/918688641919")
+            msg.body("\ud83d\udcf2 For bulk orders or queries, message us: https://wa.me/918688641919")
             user_states[from_number] = {"step": "start"}
             return str(resp)
         else:
-            msg.body("❓ Reply with:\n1️⃣ Order Food\n2️⃣ Bulk Order\n3️⃣ Other Query")
+            msg.body("\u2753 Reply with:\n1\ufe0f\u20e3 Order Food\n2\ufe0f\u20e3 Bulk Order\n3\ufe0f\u20e3 Other Query")
             return str(resp)
 
     if state["step"] == "awaiting_location":
         try:
-            # If no input is received, just ask again
-            if not incoming_msg and not (latitude and longitude):
-                msg.body("📍 Please share your live location or type your area name to check delivery availability.")
-                return str(resp)
-
             if latitude and longitude:
                 user_coords = (float(latitude), float(longitude))
             else:
@@ -115,7 +110,7 @@ def whatsapp():
             for branch, coords in BRANCHES.items():
                 if geodesic(user_coords, coords).km <= 2:
                     save_location_info(from_number, user_coords[0], user_coords[1], branch)
-                    msg.body(f"🎉 We can deliver to you from {branch} branch. Here's our menu 👇")
+                    msg.body(f"\ud83c\udf89 We can deliver to you from {branch} branch. Here's our menu \ud83d\udc47")
                     twilio_client.messages.create(
                         from_=WHATSAPP_FROM,
                         to=from_number,
@@ -125,35 +120,34 @@ def whatsapp():
                     return str(resp)
 
             save_unserviceable_user(from_number)
-            msg.body("❌ Sorry, we don't deliver to your area yet.")
+            msg.body("\u274c Sorry, we don't deliver to your area yet.")
             user_states[from_number] = {"step": "start"}
             return str(resp)
         except Exception as e:
             print("Location error:", e)
-            msg.body("⚠️ Couldn't detect your location. Try typing your area name.")
+            msg.body("\u26a0\ufe0f Couldn't detect your location. Try typing your area name.")
             return str(resp)
 
     if state["step"] == "catalogue_shown" and (
         "estimated total" in incoming_msg or
         "view sent cart" in incoming_msg or
-        "₹" in incoming_msg and "item" in incoming_msg or
+        "\u20b9" in incoming_msg and "item" in incoming_msg or
         incoming_msg.startswith("1 item")
     ):
+        user_states[from_number]["cart"] = request.values.get("Body", "").strip()  # capture actual cart message
         twilio_client.messages.create(
             from_=WHATSAPP_FROM,
             to=from_number,
             content_sid="HX6a4548eddff22056b5f4727db8ce5dcd"
         )
-        user_states[from_number] = {"step": "order_type_selection"}
+        user_states[from_number] = {"step": "order_type_selection", "cart": user_states[from_number]["cart"]}
         for kitchen in KITCHEN_NUMBERS:
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=f"whatsapp:{kitchen}",
-                body=f"🛎️ Customer {from_number} submitted cart. Awaiting delivery/takeaway choice."
+                body=f"\ud83d\udece\ufe0f Customer {from_number} submitted cart:\n{user_states[from_number]['cart']}\nAwaiting delivery/takeaway choice."
             )
         return ("", 200)
-
-    
 
     if state["step"] == "order_type_selection" and button_text in ["delivery", "takeaway"]:
         branch = "Kondapur"
@@ -163,23 +157,26 @@ def whatsapp():
         except:
             pass
 
+        cart_text = user_states.get(from_number, {}).get("cart", "No cart details available")
+
         if button_text == "delivery":
-            msg.body("🏠 Please enter your full delivery address:")
-            user_states[from_number] = {"step": "awaiting_address", "branch": branch}
+            msg.body("\ud83c\udfe0 Please enter your full delivery address:")
+            user_states[from_number] = {"step": "awaiting_address", "branch": branch, "cart": cart_text}
             return str(resp)
         else:
             order_id = save_order(from_number, branch, "Takeaway")
             msg.body(
-                f"🕒 Please pick up in 15 mins from {branch} branch.\n"
-                f"📍 {BRANCH_LINKS[branch]}\n"
-                f"🧾 Order ID: {order_id}\n"
-                f"📞 For any changes, call: {BRANCH_CONTACTS[branch]}"
+                f"\ud83d\udd52 Please pick up in 15 mins from {branch} branch.\n"
+                f"\ud83d\udccd {BRANCH_LINKS[branch]}\n"
+                f"\ud83d\udcdf Order ID: {order_id}\n"
+                f"\ud83d\udcde For any changes, call: {BRANCH_CONTACTS[branch]}\n"
+                f"🛍️ Your Cart:\n{cart_text}"
             )
             for kitchen in KITCHEN_NUMBERS:
                 twilio_client.messages.create(
                     from_=WHATSAPP_FROM,
                     to=f"whatsapp:{kitchen}",
-                    body=f"🧾 Takeaway Order\nBranch: {branch}\nOrder ID: {order_id}\nCustomer: {from_number}"
+                    body=f"🧾 Takeaway Order\nBranch: {branch}\nOrder ID: {order_id}\nCart:\n{cart_text}\nCustomer: {from_number}"
                 )
             user_states[from_number] = {"step": "start"}
             return str(resp)
@@ -187,18 +184,20 @@ def whatsapp():
     if state.get("step") == "awaiting_address":
         branch = state.get("branch", "Kondapur")
         address = incoming_msg
+        cart_text = user_states.get(from_number, {}).get("cart", "No cart details available")
         order_id = save_order(from_number, branch, "Delivery", address)
         msg.body(
-            f"✅ Order placed!\n"
+            f"\u2705 Order placed!\n"
             f"📍 Delivery to: {address}\n"
-            f"🧾 Order ID: {order_id}\n"
-            f"📞 For any changes, call: {BRANCH_CONTACTS[branch]}"
+            f"🛍️ Cart:\n{cart_text}\n"
+            f"\ud83d\udcdf Order ID: {order_id}\n"
+            f"\ud83d\udcde For any changes, call: {BRANCH_CONTACTS[branch]}"
         )
         for kitchen in KITCHEN_NUMBERS:
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=f"whatsapp:{kitchen}",
-                body=f"🧾 Delivery Order\nBranch: {branch}\nOrder ID: {order_id}\nAddress: {address}\nCustomer: {from_number}"
+                body=f"🧾 Delivery Order\nBranch: {branch}\nOrder ID: {order_id}\nAddress: {address}\nCart:\n{cart_text}\nCustomer: {from_number}"
             )
         user_states[from_number] = {"step": "start"}
         return str(resp)
@@ -218,8 +217,9 @@ def whatsapp():
             )
         return ("", 200)
 
-    msg.body("🤖 Please type 'hi' to start your order.")
+    msg.body("\ud83e\uddf0 Please type 'hi' to start your order.")
     return str(resp)
+
 
 # 📦 Update status from kitchen via WhatsApp
 @app.route("/update-order-status", methods=["POST"])
