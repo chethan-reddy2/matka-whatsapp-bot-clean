@@ -261,25 +261,32 @@ def dashboard():
     return render_template_string(DASHBOARD_TEMPLATE, orders=orders)
     
 
-@app.route("/meta-webhook", methods=["GET", "POST"])
+
 @app.route("/meta-webhook", methods=["GET", "POST"])
 def meta_webhook():
     if request.method == "GET":
-        verify_token = "Surya@matka@25"
+        verify_token = "Matka@25"
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
         challenge = request.args.get("hub.challenge")
 
-        print(f"📡 Incoming request: mode={mode}, token={token}, challenge={challenge}")
+        print("🔍 Incoming Verification Request:")
+        print(f"mode: {mode}")
+        print(f"token: {token}")
+        print(f"challenge: {challenge}")
 
         if mode == "subscribe" and token == verify_token:
             print("✅ Webhook verified successfully")
             return challenge, 200
         else:
             print("❌ Verification token mismatch")
-            return "❌ Verification token mismatch", 403
+            return "Verification token mismatch", 403
 
-    return "Webhook endpoint ready", 200
+    if request.method == "POST":
+        print("📩 POST Webhook Data:")
+        print(request.json)
+        return "Webhook POST received", 200
+
 
 
 @app.route("/update-status", methods=["POST"])
