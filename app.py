@@ -261,30 +261,57 @@ def dashboard():
     return render_template_string(DASHBOARD_TEMPLATE, orders=orders)
     
 
+@app.route("/meta-webhook", methods=["GET", "POST"])
+def meta_webhook():
+    if request.method == "GET":
+        verify_token = "matka"  # Must exactly match what you entered in Meta
+        mode = request.args.get("hub.mode")
+        token = request.args.get("hub.verify_token")
+        challenge = request.args.get("hub.challenge")
 
-if request.method == "POST":
-    try:
-        data = request.get_json()
-        print("📥 Webhook POST received:")
-        print(data)
+        if mode == "subscribe" and token == verify_token:
+            print("✅ Webhook verified successfully")
+            return challenge, 200
+        else:
+            return "❌ Verification token mismatch", 403
 
-        # Check what kind of field this webhook event is for
-        field = data.get("field")
-        if field == "flows":
-            value = data.get("value", {})
-            event = value.get("event")
-            message = value.get("message")
-            flow_id = value.get("flow_id")
+    elif request.method == "POST":
+        try:
+            data = request.get_json()
+            print("📥 Webhook POST received:")
+            print(data)
 
-            print(f"🧭 Flow Webhook Event:")
-            print(f"➡️ Event: {event}")
-            print(f"📝 Message: {message}")
-            print(f"🆔 Flow ID: {flow_id}")
+            field = data.get("field")
 
-    except Exception as e:
-        print(f"⚠️ Error parsing webhook data: {e}")
+            if field == "flows":
+                value = data.get("value", {})
+                event = value.get("event")
+                message = value.get("message")
+                flow_id = value.get("flow_id")
 
-    return "Webhook POST received", 200
+                print(f"🧭 Flow Webhook Event:")
+                print(f"➡️ Event: {event}")
+                print(f"📝 Message: {message}")
+                print(f"🆔 Flow ID: {flow_id}")
+
+            elif field == "messages":
+                value = data.get("value", {})
+                messages = value.get("messages", [])
+                contacts = value.get("contacts", [])
+
+                if messages:
+                    msg = messages[0]
+                    from_number = msg.get("from")
+                    msg_type = msg.get("type")
+
+                    if msg_type == "text":
+                        text_body = msg.get("text", {}).get("body", "")
+                        print(f"💬 Message from {from_number}: {text_body}")
+
+        except Exception as e:
+            print(f"⚠️ Failed to parse webhook message: {e}")
+
+        return "Webhook POST received", 200
 
 
 
