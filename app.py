@@ -9,6 +9,7 @@ import googlemaps
 from geopy.distance import geodesic
 import datetime
 import json
+from flask import request
 
 app = Flask(__name__)
 
@@ -264,10 +265,14 @@ def dashboard():
 
 
 
+
+
+
 @app.route("/meta-webhook", methods=["GET", "POST"])
 def meta_webhook():
+    # 🌐 Webhook Verification
     if request.method == "GET":
-        verify_token = "matka"  # Change as needed to match Meta setup
+        verify_token = "matka"  # This must match what you used in Meta Developer Console
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
         challenge = request.args.get("hub.challenge")
@@ -276,46 +281,57 @@ def meta_webhook():
             print("✅ Webhook verified successfully")
             return challenge, 200
         else:
-            print("❌ Verification token mismatch")
-            return "Verification failed", 403
+            print("❌ Webhook verification failed")
+            return "Verification token mismatch", 403
 
-    elif request.method == "POST":
+    # 📥 Handle Incoming Messages or Events
+    if request.method == "POST":
+        print("📥 Webhook POST received")
         try:
-            data = request.get_json()
-            print("📥 RAW POST Payload:")
-            print(json.dumps(data, indent=2))
-
-            field = data.get("field", "")
-            value = data.get("value", {})
-
-            if field == "messages":
-                messages = value.get("messages", [])
-                contacts = value.get("contacts", [])
-                if messages:
-                    msg = messages[0]
-                    from_number = msg.get("from")
-                    msg_type = msg.get("type")
-                    if msg_type == "text":
-                        text_body = msg.get("text", {}).get("body", "")
-                        print(f"💬 Message from {from_number}: {text_body}")
-                    elif msg_type == "order":
-                        order_data = msg.get("order", {})
-                        product_items = order_data.get("product_items", [])
-                        print(f"🛍️ Order received from {from_number}:")
-                        for item in product_items:
-                            print(f"   - Product ID: {item.get('product_retailer_id')}, Qty: {item.get('quantity')}, Price: {item.get('item_price')} {item.get('currency')}")
-
-            elif field == "flows":
-                print(f"🔁 Flow Update: {value.get('message')} (Flow ID: {value.get('flow_id')})")
-
-            elif field == "account_update":
-                print(f"🔔 Account Update: {value.get('event')} for {value.get('phone_number')}")
-
-            else:
-                print(f"📌 Received unknown field: {field}")
-
+            data = request.get_json(force=True)
+            print("🔍 Raw Payload:", json.dumps(data, indent=2))
         except Exception as e:
-            print(f"❌ Error handling POST: {str(e)}")
+            print(f"❌ Error parsing JSON: {e}")
+            return "Invalid JSON", 400
+
+        # Top-level Meta structure
+        entry = data.get("entry", [])[0] if "entry" in data else None
+        if entry:
+            changes = entry.get("changes", [])[0] if "changes" in entry else None
+            if changes:
+                value = changes.get("value", {})
+                field = changes.get("field")
+                print(f"📌 Webhook field: {field}")
+
+                # 🔹 Handle WhatsApp messages
+                if field == "messages":
+                    messages = value.get("messages", [])
+                    contacts = value.get("contacts", [])
+                    if messages:
+                        msg = messages[0]
+                        from_number = msg.get("from")
+                        msg_type = msg.get("type")
+
+                        if msg_type == "text":
+                            text_body = msg.get("text", {}).get("body", "")
+                            print(f"💬 Message from {from_number}: {text_body}")
+                        else:
+                            print(f"📦 Received non-text message of type: {msg_type}")
+                    else:
+                        print("ℹ️ No messages found in payload.")
+
+                # 🔹 Handle Flows
+                elif field == "flows":
+                    print("🔄 Flow Update Event Received")
+                    print(json.dumps(value, indent=2))
+
+                # 🔹 Handle Account Updates
+                elif field == "account_update":
+                    print("🔐 Account Update Received")
+                    print(json.dumps(value, indent=2))
+
+                else:
+                    print(f"⚠️ Unhandled field type: {field}")
 
         return "Webhook POST received", 200
 
