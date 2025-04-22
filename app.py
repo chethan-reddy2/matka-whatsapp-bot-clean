@@ -264,19 +264,25 @@ def dashboard():
 @app.route("/meta-webhook", methods=["GET", "POST"])
 def meta_webhook():
     if request.method == "GET":
-        verify_token = "Surya@matka@25"  # Must match exactly with Meta
+        verify_token = "Surya@matka@25"
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
         challenge = request.args.get("hub.challenge")
+
+        print("📡 Incoming webhook verification request:")
+        print("mode:", mode)
+        print("token:", token)
+        print("challenge:", challenge)
 
         if mode == "subscribe" and token == verify_token:
             print("✅ Webhook verified successfully")
             return challenge, 200
         else:
+            print("❌ Verification token mismatch")
             return "❌ Verification token mismatch", 403
 
-    # For now, just return OK on POST
     return "Webhook endpoint ready", 200
+
 
 @app.route("/update-status", methods=["POST"])
 def update_status():
