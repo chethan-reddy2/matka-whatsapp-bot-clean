@@ -67,7 +67,7 @@ def save_order(phone, branch, order_type, address=None):
 # WhatsApp Main Flow
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
-    incoming_msg = request.values.get("Body", "").strip().lower()
+    incoming_msg = request.values.get("Body", "").strip()
     button_text = request.values.get("ButtonText", "").strip().lower()
     from_number = request.values.get("From")
     latitude = request.values.get("Latitude")
@@ -77,7 +77,7 @@ def whatsapp():
     msg = resp.message()
     state = user_states.get(from_number, {"step": "start"})
 
-    if incoming_msg in ["hi", "hello"] or state["step"] == "start":
+    if incoming_msg.lower() in ["hi", "hello"] or state["step"] == "start":
         twilio_client.messages.create(
             from_=WHATSAPP_FROM,
             to=from_number,
@@ -87,11 +87,11 @@ def whatsapp():
         return ("", 200)
 
     if state["step"] == "greeted":
-        if incoming_msg in ["1", "order food"]:
+        if incoming_msg.lower() in ["1", "order food"]:
             msg.body("📍 Please share your live location or type your area name to check delivery availability.")
             user_states[from_number] = {"step": "awaiting_location"}
             return str(resp)
-        elif incoming_msg in ["2", "bulk order", "3", "other query"]:
+        elif incoming_msg.lower() in ["2", "bulk order", "3", "other query"]:
             msg.body("📲 For bulk orders or queries, message us: https://wa.me/918688641919")
             user_states[from_number] = {"step": "start"}
             return str(resp)
@@ -134,12 +134,12 @@ def whatsapp():
         return str(resp)
 
     if state["step"] == "awaiting_cart" and (
-        "estimated total" in incoming_msg or
-        "view sent cart" in incoming_msg or
-        "₹" in incoming_msg and "item" in incoming_msg or
-        incoming_msg.startswith("1 item")
+        "estimated total" in incoming_msg.lower() or
+        "view sent cart" in incoming_msg.lower() or
+        "₹" in incoming_msg and "item" in incoming_msg.lower() or
+        incoming_msg.lower().startswith("1 item")
     ):
-        user_states[from_number]["cart"] = request.values.get("Body", "").strip()
+        user_states[from_number]["cart"] = incoming_msg
         user_states[from_number]["step"] = "order_type_selection"
 
         twilio_client.messages.create(
@@ -152,7 +152,7 @@ def whatsapp():
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=f"whatsapp:{kitchen}",
-                body=f"📬 Customer {from_number} submitted cart:\n{user_states[from_number]['cart']}\nAwaiting delivery/takeaway choice."
+                body=f"📬 Customer {from_number} submitted cart:\n{incoming_msg}\nAwaiting delivery/takeaway choice."
             )
         return ("", 200)
 
@@ -171,7 +171,11 @@ def whatsapp():
 
         if button_text == "delivery":
             msg.body("🏠 Please enter your full delivery address:")
-            user_states[from_number] = {"step": "awaiting_address", "branch": branch, "cart": user_states[from_number].get("cart", "")}
+            user_states[from_number] = {
+                "step": "awaiting_address",
+                "branch": branch,
+                "cart": user_states[from_number].get("cart", "")
+            }
             return str(resp)
         else:
             order_id = save_order(from_number, branch, "Takeaway")
@@ -185,7 +189,10 @@ def whatsapp():
                 twilio_client.messages.create(
                     from_=WHATSAPP_FROM,
                     to=f"whatsapp:{kitchen}",
-                    body=f"🧾 Takeaway Order\nBranch: {branch}\nOrder ID: {order_id}\nCustomer: {from_number}\nCart: {user_states[from_number].get('cart', '')}"
+                    body=(
+                        f"🧾 Takeaway Order\nBranch: {branch}\nOrder ID: {order_id}\n"
+                        f"Customer: {from_number}\nCart: {user_states[from_number].get('cart', '')}"
+                    )
                 )
             user_states[from_number] = {"step": "start"}
             return str(resp)
@@ -204,7 +211,10 @@ def whatsapp():
             twilio_client.messages.create(
                 from_=WHATSAPP_FROM,
                 to=f"whatsapp:{kitchen}",
-                body=f"🧾 Delivery Order\nBranch: {branch}\nOrder ID: {order_id}\nAddress: {address}\nCustomer: {from_number}\nCart: {user_states[from_number].get('cart', '')}"
+                body=(
+                    f"🧾 Delivery Order\nBranch: {branch}\nOrder ID: {order_id}\n"
+                    f"Address: {address}\nCustomer: {from_number}\nCart: {state.get('cart', '')}"
+                )
             )
         user_states[from_number] = {"step": "start"}
         return str(resp)
