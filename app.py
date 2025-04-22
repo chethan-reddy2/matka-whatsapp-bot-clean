@@ -270,70 +270,74 @@ def dashboard():
 
 @app.route("/meta-webhook", methods=["GET", "POST"])
 def meta_webhook():
-    # 🌐 Webhook Verification
+    # ✅ GET — Verification from Meta (only once during setup)
     if request.method == "GET":
-        verify_token = "matka"  # This must match what you used in Meta Developer Console
+        verify_token = "matka"  # Update this to match what you entered in Meta
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
         challenge = request.args.get("hub.challenge")
+
+        print(f"🔁 GET verification attempt | mode: {mode}, token: {token}")
 
         if mode == "subscribe" and token == verify_token:
             print("✅ Webhook verified successfully")
             return challenge, 200
         else:
-            print("❌ Webhook verification failed")
+            print("❌ Verification failed")
             return "Verification token mismatch", 403
 
-    # 📥 Handle Incoming Messages or Events
+    # ✅ POST — New message or update received
     if request.method == "POST":
-        print("📥 Webhook POST received")
+        print("📬 POST /meta-webhook triggered")
+
         try:
             data = request.get_json(force=True)
-            print("🔍 Raw Payload:", json.dumps(data, indent=2))
+            print("📥 Webhook POST data received:")
+            print(data)
+
+            entry = data.get("entry", [])[0]
+            changes = entry.get("changes", [])[0]
+            value = changes.get("value", {})
+            field = changes.get("field", "")
+
+            # Handle regular text messages
+            if field == "messages":
+                messages = value.get("messages", [])
+                contacts = value.get("contacts", [])
+
+                if messages:
+                    msg = messages[0]
+                    from_number = msg.get("from")
+                    msg_type = msg.get("type")
+
+                    if msg_type == "text":
+                        text_body = msg.get("text", {}).get("body", "")
+                        print(f"💬 Text from {from_number}: {text_body}")
+                    elif msg_type == "order":
+                        print("🛒 Order message received (catalog interaction)")
+                        print(msg)
+
+            # Handle test flows or other types
+            elif field == "flows":
+                print("🔄 Flow event received")
+                print(value)
+
+            elif field == "account_update":
+                print("👤 Account update received")
+                print(value)
+
+            else:
+                print(f"ℹ️ Unhandled field type: {field}")
+
         except Exception as e:
-            print(f"❌ Error parsing JSON: {e}")
-            return "Invalid JSON", 400
-
-        # Top-level Meta structure
-        entry = data.get("entry", [])[0] if "entry" in data else None
-        if entry:
-            changes = entry.get("changes", [])[0] if "changes" in entry else None
-            if changes:
-                value = changes.get("value", {})
-                field = changes.get("field")
-                print(f"📌 Webhook field: {field}")
-
-                # 🔹 Handle WhatsApp messages
-                if field == "messages":
-                    messages = value.get("messages", [])
-                    contacts = value.get("contacts", [])
-                    if messages:
-                        msg = messages[0]
-                        from_number = msg.get("from")
-                        msg_type = msg.get("type")
-
-                        if msg_type == "text":
-                            text_body = msg.get("text", {}).get("body", "")
-                            print(f"💬 Message from {from_number}: {text_body}")
-                        else:
-                            print(f"📦 Received non-text message of type: {msg_type}")
-                    else:
-                        print("ℹ️ No messages found in payload.")
-
-                # 🔹 Handle Flows
-                elif field == "flows":
-                    print("🔄 Flow Update Event Received")
-                    print(json.dumps(value, indent=2))
-
-                # 🔹 Handle Account Updates
-                elif field == "account_update":
-                    print("🔐 Account Update Received")
-                    print(json.dumps(value, indent=2))
-
-                else:
-                    print(f"⚠️ Unhandled field type: {field}")
+            print(f"❌ Error parsing webhook POST: {str(e)}")
 
         return "Webhook POST received", 200
+
+    # 🚨 Safety: any other method
+    print(f"⚠️ Received unsupported HTTP method: {request.method}")
+    return "Method not allowed", 405
+
 
 
 
