@@ -262,11 +262,12 @@ def dashboard():
     return render_template_string(DASHBOARD_TEMPLATE, orders=orders)
     
 
+
+
 @app.route("/meta-webhook", methods=["GET", "POST"])
 def meta_webhook():
-    # Step 1: Handle GET request (for verification)
     if request.method == "GET":
-        verify_token = "matka"  # Change this to match what you used in Meta
+        verify_token = "matka"  # Change as needed to match Meta setup
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
         challenge = request.args.get("hub.challenge")
@@ -278,43 +279,46 @@ def meta_webhook():
             print("❌ Verification token mismatch")
             return "Verification failed", 403
 
-    # Step 2: Handle POST request (actual incoming data)
     elif request.method == "POST":
         try:
             data = request.get_json()
             print("📥 RAW POST Payload:")
-            print(json.dumps(data, indent=2))  # Pretty print the JSON data
+            print(json.dumps(data, indent=2))
 
-            # Optional: Detect message type
             field = data.get("field", "")
             value = data.get("value", {})
 
             if field == "messages":
                 messages = value.get("messages", [])
+                contacts = value.get("contacts", [])
                 if messages:
                     msg = messages[0]
                     from_number = msg.get("from")
-                    text_body = msg.get("text", {}).get("body", "")
-                    print(f"💬 Message from {from_number}: {text_body}")
+                    msg_type = msg.get("type")
+                    if msg_type == "text":
+                        text_body = msg.get("text", {}).get("body", "")
+                        print(f"💬 Message from {from_number}: {text_body}")
+                    elif msg_type == "order":
+                        order_data = msg.get("order", {})
+                        product_items = order_data.get("product_items", [])
+                        print(f"🛍️ Order received from {from_number}:")
+                        for item in product_items:
+                            print(f"   - Product ID: {item.get('product_retailer_id')}, Qty: {item.get('quantity')}, Price: {item.get('item_price')} {item.get('currency')}")
 
             elif field == "flows":
-                event = value.get("event")
-                message = value.get("message")
-                flow_id = value.get("flow_id")
-                print(f"🔁 Flow Update: {event} – {message} (Flow ID: {flow_id})")
+                print(f"🔁 Flow Update: {value.get('message')} (Flow ID: {value.get('flow_id')})")
 
             elif field == "account_update":
-                event = value.get("event")
-                phone = value.get("phone_number")
-                print(f"🔔 Account Update: {event} for number {phone}")
+                print(f"🔔 Account Update: {value.get('event')} for {value.get('phone_number')}")
 
             else:
-                print(f"ℹ️ Received field: {field}")
+                print(f"📌 Received unknown field: {field}")
 
         except Exception as e:
-            print(f"❌ Failed to handle POST: {str(e)}")
+            print(f"❌ Error handling POST: {str(e)}")
 
         return "Webhook POST received", 200
+
 
 
 
