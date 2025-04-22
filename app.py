@@ -282,17 +282,10 @@ def meta_webhook():
         print(data)
 
         try:
-            # Handle real webhook from Meta (with entry → changes → value)
-            if "entry" in data:
-                value = data["entry"][0]["changes"][0]["value"]
-            # Handle direct test message from Meta (no nesting)
-            elif "value" in data:
-                value = data["value"]
-            else:
-                value = {}
-
+            entry = data.get("entry", [])[0]
+            changes = entry.get("changes", [])[0]
+            value = changes.get("value", {})
             messages = value.get("messages", [])
-            contacts = value.get("contacts", [])
 
             if messages:
                 msg = messages[0]
@@ -300,14 +293,27 @@ def meta_webhook():
                 msg_type = msg.get("type")
 
                 if msg_type == "text":
-                    body = msg.get("text", {}).get("body", "")
-                    print(f"💬 Test Message from {from_number}: {body}")
-                else:
-                    print(f"📦 Received a {msg_type} message: {msg}")
-        except Exception as e:
-            print(f"⚠️ Error handling webhook: {e}")
+                    text_body = msg.get("text", {}).get("body", "")
+                    print(f"💬 Message from {from_number}: {text_body}")
 
-        return "✅ Webhook POST handled", 200
+                elif msg_type == "order":
+                    order = msg.get("order", {})
+                    catalog_id = order.get("catalog_id")
+                    items = order.get("product_items", [])
+
+                    print(f"🛒 Order received from {from_number} (Catalog: {catalog_id}):")
+                    for item in items:
+                        pid = item.get("product_retailer_id")
+                        qty = item.get("quantity")
+                        price = item.get("item_price")
+                        currency = item.get("currency")
+                        print(f" - {qty} x {pid} @ {price} {currency}")
+
+        except Exception as e:
+            print(f"⚠️ Failed to parse webhook message: {e}")
+
+        return "Webhook POST received", 200
+
 
 
 
