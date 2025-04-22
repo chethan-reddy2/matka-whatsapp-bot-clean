@@ -264,12 +264,25 @@ def dashboard():
 
 @app.route("/meta-webhook", methods=["GET", "POST"])
 def meta_webhook():
-    if request.method == "POST":
+    verify_token = "matka"  # Make sure this matches exactly with the one you added on Meta
+
+    if request.method == "GET":
+        mode = request.args.get("hub.mode")
+        token = request.args.get("hub.verify_token")
+        challenge = request.args.get("hub.challenge")
+
+        if mode == "subscribe" and token == verify_token:
+            print("✅ Webhook verified successfully")
+            return challenge, 200
+        else:
+            print("❌ Verification token mismatch")
+            return "Verification token mismatch", 403
+
+    elif request.method == "POST":
         data = request.get_json()
         print("📥 Webhook POST received:")
         print(data)
 
-        # Extract message if it exists
         try:
             entry = data.get("entry", [])[0]
             changes = entry.get("changes", [])[0]
@@ -285,10 +298,12 @@ def meta_webhook():
                 if msg_type == "text":
                     text_body = msg.get("text", {}).get("body", "")
                     print(f"💬 Message from {from_number}: {text_body}")
+
         except Exception as e:
             print(f"⚠️ Failed to parse webhook message: {e}")
 
         return "Webhook POST received", 200
+
 
 
 
