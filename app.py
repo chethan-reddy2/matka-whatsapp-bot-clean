@@ -265,7 +265,7 @@ def dashboard():
 @app.route("/meta-webhook", methods=["GET", "POST"])
 def meta_webhook():
     if request.method == "GET":
-        verify_token = "Matka@25"
+        verify_token = "matka"
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
         challenge = request.args.get("hub.challenge")
