@@ -292,9 +292,10 @@ def meta_webhook():
         print(data, flush=True)
 
         try:
-            # Handle incoming messages
-            if data.get("field") == "messages":
-                value = data.get("value", {})
+            field = data.get("entry", [{}])[0].get("changes", [{}])[0].get("field")
+            value = data.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {})
+
+            if field == "messages":
                 messages = value.get("messages", [])
                 contacts = value.get("contacts", [])
 
@@ -306,25 +307,50 @@ def meta_webhook():
                     if msg_type == "text":
                         text_body = msg.get("text", {}).get("body", "")
                         print(f"💬 Text from {from_number}: {text_body}", flush=True)
-                    elif msg_type == "order":
-                        print(f"🛒 Order received from {from_number}!", flush=True)
-                        print(msg, flush=True)
 
-            # Handle account update (like verified number)
-            elif data.get("field") == "account_update":
-                event = data["value"].get("event")
-                phone_number = data["value"].get("phone_number")
+                    elif msg_type == "order":
+                        order_details = msg.get("order", {})
+                        catalog_id = order_details.get("catalog_id", "")
+                        product_items = order_details.get("product_items", [])
+
+                        print(f"🛒 Order received from {from_number}!", flush=True)
+                        print(f"📦 Catalog ID: {catalog_id}", flush=True)
+
+                        for item in product_items:
+                            product_id = item.get("product_retailer_id")
+                            quantity = item.get("quantity")
+                            item_price = item.get("item_price")
+                            currency = item.get("currency", "INR")
+
+                            print(f"➡️ Product: {product_id} | Qty: {quantity} | Price: ₹{item_price} {currency}", flush=True)
+
+                        # Save to CSV for kitchen
+                        with open("catalog_orders.csv", "a", newline="", encoding="utf-8") as f:
+                            writer = csv.writer(f)
+                            for item in product_items:
+                                writer.writerow([
+                                    from_number,
+                                    catalog_id,
+                                    item.get("product_retailer_id"),
+                                    item.get("quantity"),
+                                    item.get("item_price"),
+                                    item.get("currency", "INR"),
+                                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                ])
+
+            elif field == "account_update":
+                event = value.get("event")
+                phone_number = value.get("phone_number")
                 print(f"📢 Account Update: {event} for {phone_number}", flush=True)
 
-            # Handle flow status change
-            elif data.get("field") == "flows":
-                flow_event = data["value"].get("event")
-                flow_message = data["value"].get("message")
+            elif field == "flows":
+                flow_event = value.get("event")
+                flow_message = value.get("message")
                 print(f"🔄 Flow Event: {flow_event}", flush=True)
                 print(f"📋 Flow Message: {flow_message}", flush=True)
 
             else:
-                print("ℹ️ Other field received:", data.get("field"), flush=True)
+                print("ℹ️ Other field received:", field, flush=True)
 
         except Exception as e:
             print(f"⚠️ Error processing webhook data: {str(e)}", flush=True)
