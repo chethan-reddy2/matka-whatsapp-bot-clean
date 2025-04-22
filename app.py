@@ -223,7 +223,22 @@ def whatsapp():
     return str(resp)
 
 
+@app.route("/meta-webhook", methods=["GET", "POST"])
+def meta_webhook():
+    if request.method == "GET":
+        verify_token = "Surya@matka@25"  # This must match exactly what you enter on Facebook
+        mode = request.args.get("hub.mode")
+        token = request.args.get("hub.verify_token")
+        challenge = request.args.get("hub.challenge")
 
+        if mode == "subscribe" and token == verify_token:
+            print("✅ Webhook verified successfully")
+            return challenge, 200
+        else:
+            return "❌ Verification token mismatch", 403
+
+    # Later you'll handle POST here
+    return "Webhook endpoint ready", 200
 # 📦 Update status from kitchen via WhatsApp
 @app.route("/update-order-status", methods=["POST"])
 def update_order_status():
