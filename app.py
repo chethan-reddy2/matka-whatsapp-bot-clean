@@ -262,11 +262,13 @@ def dashboard():
     
 
 
-@app.route("/meta-webhook", methods=["GET", "POST"])
+@app.route("/meta-webhook", methods=["GET", "POST", "HEAD"])
 def meta_webhook():
-    verify_token = "matka"  # Make sure this matches exactly with the one you added on Meta
+    if request.method == "HEAD":
+        return "", 200  # Respond to HEAD requests cleanly
 
     if request.method == "GET":
+        verify_token = "matka"  # Your Meta Verify Token
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
         challenge = request.args.get("hub.challenge")
@@ -298,7 +300,6 @@ def meta_webhook():
                 if msg_type == "text":
                     text_body = msg.get("text", {}).get("body", "")
                     print(f"💬 Message from {from_number}: {text_body}")
-
         except Exception as e:
             print(f"⚠️ Failed to parse webhook message: {e}")
 
