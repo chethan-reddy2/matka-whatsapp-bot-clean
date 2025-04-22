@@ -262,57 +262,30 @@ def dashboard():
     
 
 
-@app.route("/meta-webhook", methods=["GET", "POST"])
-def meta_webhook():
-    if request.method == "GET":
-        verify_token = "matka"
-        mode = request.args.get("hub.mode")
-        token = request.args.get("hub.verify_token")
-        challenge = request.args.get("hub.challenge")
-
-        if mode == "subscribe" and token == verify_token:
-            print("✅ Webhook verified successfully")
-            return challenge, 200
-        else:
-            return "❌ Verification token mismatch", 403
-
-    if request.method == "POST":
+if request.method == "POST":
+    try:
         data = request.get_json()
         print("📥 Webhook POST received:")
         print(data)
 
-        try:
-            entry = data.get("entry", [])[0]
-            changes = entry.get("changes", [])[0]
-            value = changes.get("value", {})
-            messages = value.get("messages", [])
+        # Check what kind of field this webhook event is for
+        field = data.get("field")
+        if field == "flows":
+            value = data.get("value", {})
+            event = value.get("event")
+            message = value.get("message")
+            flow_id = value.get("flow_id")
 
-            if messages:
-                msg = messages[0]
-                from_number = msg.get("from")
-                msg_type = msg.get("type")
+            print(f"🧭 Flow Webhook Event:")
+            print(f"➡️ Event: {event}")
+            print(f"📝 Message: {message}")
+            print(f"🆔 Flow ID: {flow_id}")
 
-                if msg_type == "text":
-                    text_body = msg.get("text", {}).get("body", "")
-                    print(f"💬 Message from {from_number}: {text_body}")
+    except Exception as e:
+        print(f"⚠️ Error parsing webhook data: {e}")
 
-                elif msg_type == "order":
-                    order = msg.get("order", {})
-                    catalog_id = order.get("catalog_id")
-                    items = order.get("product_items", [])
+    return "Webhook POST received", 200
 
-                    print(f"🛒 Order received from {from_number} (Catalog: {catalog_id}):")
-                    for item in items:
-                        pid = item.get("product_retailer_id")
-                        qty = item.get("quantity")
-                        price = item.get("item_price")
-                        currency = item.get("currency")
-                        print(f" - {qty} x {pid} @ {price} {currency}")
-
-        except Exception as e:
-            print(f"⚠️ Failed to parse webhook message: {e}")
-
-        return "Webhook POST received", 200
 
 
 
