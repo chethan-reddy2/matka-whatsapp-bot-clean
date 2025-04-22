@@ -270,38 +270,31 @@ def dashboard():
 
 @app.route("/meta-webhook", methods=["GET", "POST"])
 def meta_webhook():
-    # ✅ GET — Verification from Meta (only once during setup)
+    # 🔐 GET - Webhook Verification
     if request.method == "GET":
-        verify_token = "matka"  # Update this to match what you entered in Meta
+        verify_token = "matka"  # Use exactly what you entered in Meta
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
         challenge = request.args.get("hub.challenge")
 
-        print(f"🔁 GET verification attempt | mode: {mode}, token: {token}")
-
         if mode == "subscribe" and token == verify_token:
-            print("✅ Webhook verified successfully")
+            print("✅ Webhook verified successfully", flush=True)
             return challenge, 200
         else:
-            print("❌ Verification failed")
+            print("❌ Verification failed", flush=True)
             return "Verification token mismatch", 403
 
-    # ✅ POST — New message or update received
+    # 📩 POST - Webhook Payload Handling
     if request.method == "POST":
-        print("📬 POST /meta-webhook triggered")
+        print("📬 POST /meta-webhook triggered", flush=True)
+        data = request.get_json()
+        print("📥 Webhook POST data received:", flush=True)
+        print(data, flush=True)
 
         try:
-            data = request.get_json(force=True)
-            print("📥 Webhook POST data received:")
-            print(data)
-
-            entry = data.get("entry", [])[0]
-            changes = entry.get("changes", [])[0]
-            value = changes.get("value", {})
-            field = changes.get("field", "")
-
-            # Handle regular text messages
-            if field == "messages":
+            # Handle incoming messages
+            if data.get("field") == "messages":
+                value = data.get("value", {})
                 messages = value.get("messages", [])
                 contacts = value.get("contacts", [])
 
@@ -312,31 +305,32 @@ def meta_webhook():
 
                     if msg_type == "text":
                         text_body = msg.get("text", {}).get("body", "")
-                        print(f"💬 Text from {from_number}: {text_body}")
+                        print(f"💬 Text from {from_number}: {text_body}", flush=True)
                     elif msg_type == "order":
-                        print("🛒 Order message received (catalog interaction)")
-                        print(msg)
+                        print(f"🛒 Order received from {from_number}!", flush=True)
+                        print(msg, flush=True)
 
-            # Handle test flows or other types
-            elif field == "flows":
-                print("🔄 Flow event received")
-                print(value)
+            # Handle account update (like verified number)
+            elif data.get("field") == "account_update":
+                event = data["value"].get("event")
+                phone_number = data["value"].get("phone_number")
+                print(f"📢 Account Update: {event} for {phone_number}", flush=True)
 
-            elif field == "account_update":
-                print("👤 Account update received")
-                print(value)
+            # Handle flow status change
+            elif data.get("field") == "flows":
+                flow_event = data["value"].get("event")
+                flow_message = data["value"].get("message")
+                print(f"🔄 Flow Event: {flow_event}", flush=True)
+                print(f"📋 Flow Message: {flow_message}", flush=True)
 
             else:
-                print(f"ℹ️ Unhandled field type: {field}")
+                print("ℹ️ Other field received:", data.get("field"), flush=True)
 
         except Exception as e:
-            print(f"❌ Error parsing webhook POST: {str(e)}")
+            print(f"⚠️ Error processing webhook data: {str(e)}", flush=True)
 
         return "Webhook POST received", 200
 
-    # 🚨 Safety: any other method
-    print(f"⚠️ Received unsupported HTTP method: {request.method}")
-    return "Method not allowed", 405
 
 
 
