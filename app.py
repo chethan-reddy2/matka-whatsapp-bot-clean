@@ -262,13 +262,10 @@ def dashboard():
     
 
 
-@app.route("/meta-webhook", methods=["GET", "POST", "HEAD"])
+@app.route("/meta-webhook", methods=["GET", "POST"])
 def meta_webhook():
-    if request.method == "HEAD":
-        return "", 200  # Respond to HEAD requests cleanly
-
     if request.method == "GET":
-        verify_token = "matka"  # Your Meta Verify Token
+        verify_token = "matka"
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
         challenge = request.args.get("hub.challenge")
@@ -277,18 +274,23 @@ def meta_webhook():
             print("✅ Webhook verified successfully")
             return challenge, 200
         else:
-            print("❌ Verification token mismatch")
-            return "Verification token mismatch", 403
+            return "❌ Verification token mismatch", 403
 
-    elif request.method == "POST":
+    if request.method == "POST":
         data = request.get_json()
         print("📥 Webhook POST received:")
         print(data)
 
         try:
-            entry = data.get("entry", [])[0]
-            changes = entry.get("changes", [])[0]
-            value = changes.get("value", {})
+            # Handle real webhook from Meta (with entry → changes → value)
+            if "entry" in data:
+                value = data["entry"][0]["changes"][0]["value"]
+            # Handle direct test message from Meta (no nesting)
+            elif "value" in data:
+                value = data["value"]
+            else:
+                value = {}
+
             messages = value.get("messages", [])
             contacts = value.get("contacts", [])
 
@@ -298,12 +300,15 @@ def meta_webhook():
                 msg_type = msg.get("type")
 
                 if msg_type == "text":
-                    text_body = msg.get("text", {}).get("body", "")
-                    print(f"💬 Message from {from_number}: {text_body}")
+                    body = msg.get("text", {}).get("body", "")
+                    print(f"💬 Test Message from {from_number}: {body}")
+                else:
+                    print(f"📦 Received a {msg_type} message: {msg}")
         except Exception as e:
-            print(f"⚠️ Failed to parse webhook message: {e}")
+            print(f"⚠️ Error handling webhook: {e}")
 
-        return "Webhook POST received", 200
+        return "✅ Webhook POST handled", 200
+
 
 
 
