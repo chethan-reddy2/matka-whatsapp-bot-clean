@@ -260,10 +260,11 @@ def dashboard():
                 orders.append(row)
     return render_template_string(DASHBOARD_TEMPLATE, orders=orders)
     
+
 @app.route("/meta-webhook", methods=["GET", "POST"])
 def meta_webhook():
     if request.method == "GET":
-        verify_token = "Surya@matka@25"  # This must match exactly what you enter on Facebook
+        verify_token = "Surya@matka@25"  # Must match exactly with Meta
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
         challenge = request.args.get("hub.challenge")
@@ -274,8 +275,9 @@ def meta_webhook():
         else:
             return "❌ Verification token mismatch", 403
 
-    # Later you'll handle POST here
+    # For now, just return OK on POST
     return "Webhook endpoint ready", 200
+
 @app.route("/update-status", methods=["POST"])
 def update_status():
     order_id = request.form.get("order_id")
